@@ -1,0 +1,25 @@
+# Retention + integrity verification. Weekly, separate from the backup so a
+# long prune can never delay or fail a backup run.
+[Unit]
+Description=doodlessd backup retention and integrity check (restic)
+Documentation=https://github.com/doodlemania2/documenso/blob/main/backup/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/doodlessd-prune.sh
+OnFailure=doodlessd-backup-failed@%n.service
+# --read-data-subset downloads and re-hashes pack files, which on a remote
+# repository is the long pole. 6h, and it holds the shared flock the whole
+# time — which is why the backup job takes that lock with -n and skips rather
+# than queueing behind this.
+TimeoutStartSec=6h
+User=root
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+
+[Install]
+WantedBy=multi-user.target

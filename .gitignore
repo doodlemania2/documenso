@@ -1,0 +1,26 @@
+# Secrets never enter this repo. The .example files are the only committed
+# copies, and they hold placeholders.
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+backup.env
+
+# Signing material. The .p12 and anything that could be turned back into it.
+*.p12
+*.pfx
+*.key
+*.pem
+*.crt
+
+# Local scratch
+*.sql
+*.sql.gz
+*.tar
+*.tar.gz
+*.bz2
+.DS_Store
+
+# Local credential files (never committed). Mirrors the K3s/.secrets convention.
+.secrets/

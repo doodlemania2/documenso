@@ -1,0 +1,186 @@
+# Documenso on doodlessd.
+#
+# Lives at /home/derek/documenso-stack/docker-compose.yml to match the
+# convention the other stacks on this host already use (docs-stack, npm-stack).
+#
+# Bring it up with:  docker compose up -d
+#
+# ---------------------------------------------------------------------------
+# WATCHTOWER IS DELIBERATELY NOT ENABLED FOR THIS STACK.
+#
+# The watchtower on this host runs `--label-enable`, i.e. opt-in: it only
+# touches containers carrying com.centurylinklabs.watchtower.enable=true.
+# Neither service below carries that label, and neither should.
+#
+# This is a signing service. An unattended minor bump can change the database
+# schema (Documenso runs Prisma migrations on boot), change the API surface
+# that TDPdf calls, or change how documents are signed — and the first anyone
+# would learn of it is a failed signature. Upgrades here are a deliberate act:
+# read the release notes, take a backup, bump the tag AND the digest below,
+# `docker compose up -d`, verify.
+# ---------------------------------------------------------------------------
+
+name: documenso
+
+services:
+  database:
+    # Pinned to tag AND digest. The tag says what it is for a human; the digest
+    # is what actually gets pulled, so a re-tag upstream cannot silently swap
+    # the image under us. Update both together, never one.
+    #
+    # Postgres 17 (Documenso requires 14+). Note the host's own pg_dump is 16,
+    # and pg_dump 16 REFUSES to dump a 17 server. That is why the backup job
+    # runs pg_dumpall *inside* this container using its own binaries rather
+    # than from the host — see backup/doodlessd-backup.sh.
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    container_name: documenso-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      # Without this, the alpine image initialises the cluster with the C
+      # locale. Set it explicitly so a future restore into a different image
+      # cannot hit a collation mismatch on the indexes.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    # NO published ports. Postgres is reachable only over the compose network
+    # by the documenso service. Nothing outside this stack has any business
+    # talking to it, and the host already exposes enough.
+    volumes:
+      - documenso-db:/var/lib/postgresql/data
+    healthcheck:
+      # depends_on: service_healthy below hangs on this, so it has to be a real
+      # readiness answer, not `true`. pg_isready returns 0 only once the
+      # postmaster is accepting connections for this database.
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          # 23G on this host, shared with NPM, the otel collector, the relay,
+          # takahe and the docs site. Postgres will happily use everything it
+          # is given; cap it so a runaway query cannot OOM the box and take the
+          # reverse proxy down with it.
+          memory: 2g
+          cpus: "2.0"
+        reservations:
+          memory: 256m
+    logging: &logging
+      # Docker's default json-file driver has NO size limit. On a host with no
+      # backups and 122G free, an unbounded log is a slow-motion outage.
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  documenso:
+    # Documenso 2.x is REQUIRED: TDPdf targets the v2 API (/api/v2, envelope
+    # based), which does not exist in 1.x.
+    #
+    # v2.18.0 published 2026-09-09, verified against the Docker Hub registry
+    # manifest API (see deploy/README.md for the exact command). The digest is
+    # the multi-arch index digest; linux/amd64 underneath it is
+    # sha256:9e0c3bb164cee0475c56325dd940435055b9cbc75f94cd7af9a4fdbf7e91ec83.
+    image: documenso/documenso:v2.18.0@sha256:126976b9e3be54193e1a3be8d22130af1913aaa894c550b98870a2cc4c422650
+    container_name: documenso-app
+    restart: unless-stopped
+    depends_on:
+      database:
+        # Documenso runs its Prisma migrations at boot. Starting it against a
+        # postmaster that is still initialising gives a crash loop that looks
+        # like a config error but is a race.
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Everything that must not vary per-host is set here rather than in .env,
+      # so a hand-edited .env on the server cannot quietly change it.
+      #
+      # `local` signing transport: a .p12 on disk, passphrase from .env.
+      #
+      # TODO(issue #2): the real SSL.com certificate will live in **Azure Key
+      # Vault Premium as a non-exportable RSA-HSM key**. The `local` transport
+      # CANNOT use it — `local` requires the private key material as a file or
+      # base64 blob, and the entire point of a non-exportable HSM key is that
+      # the private key never leaves the vault. Documenso's shipped transports
+      # are `local`, `gcloud-hsm` and `csc`; none of them speak Azure Key
+      # Vault. Getting there needs an `AzureKeyVaultSigner` in our fork and a
+      # custom image built from it. Until that exists, this stack signs with a
+      # certificate we hold on disk, and that is what these settings say.
+      # Do not read the presence of an Azure tenant anywhere as evidence that
+      # the KV path works — it does not, today.
+      NEXT_PRIVATE_SIGNING_TRANSPORT: local
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /opt/documenso/cert.p12
+      # Documents are stored as bytes in Postgres (the upstream default). That
+      # is a deliberate choice here and it is load-bearing for backups: it
+      # means one pg_dumpall captures the documents, the audit trail and the
+      # signatures together, consistently, with no second store to keep in
+      # step. If this is ever switched to `s3`, the backup job must grow an
+      # object-store leg — see backup/README.md.
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: database
+      # The app's own outbound calls (background jobs sending mail, firing
+      # webhooks) go to itself. Loopback inside the container, not the public
+      # hostname — otherwise every internal call round-trips through
+      # Cloudflare and nginx-proxy-manager and fails the moment DNS wobbles.
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://127.0.0.1:3000
+      PORT: "3000"
+    ports:
+      # LOOPBACK ONLY. nginx-proxy-manager runs in host network mode on this
+      # box, so it reaches the app on 127.0.0.1 — the same shape docs-stack and
+      # the relay use. Binding 0.0.0.0 here would put an unauthenticated,
+      # un-TLS'd signing app straight on 199.241.139.240 and on the v6 address,
+      # in front of Cloudflare rather than behind it.
+      #
+      # 18100 is free on this host: 18080/18081/19090 are the relay, 18099 is
+      # the docs site, and something already holds *:3000.
+      - "127.0.0.1:18100:3000"
+    volumes:
+      # The signing certificate, read-only. The container runs as uid 1001, so
+      # on the host: chown 1001 secrets/cert.p12 && chmod 400 secrets/cert.p12.
+      #
+      # Bind-mounted as a FILE. That binds to the inode, so replacing the cert
+      # with a write-new-then-rename will NOT be seen by a running container —
+      # rotating the certificate requires `docker compose up -d --force-recreate
+      # documenso`, not just dropping a new file in place.
+      - ./secrets/cert.p12:/opt/documenso/cert.p12:ro
+    healthcheck:
+      # The image is node-based and carries no curl or wget, so probe with node
+      # itself. Node 20+ has a global fetch(). Any answer below 500 counts as
+      # up: unauthenticated / redirects to /signin, which is a 302 and is
+      # exactly what a healthy instance does.
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:'+(process.env.PORT||3000)).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Generous: first boot runs the full Prisma migration set before the
+      # server listens. A tight start_period turns a normal first start into a
+      # restart loop.
+      start_period: 180s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          # Next.js server + PDF rendering. 3g is headroom for a few concurrent
+          # large documents without letting one pathological PDF eat the host.
+          memory: 3g
+          cpus: "3.0"
+        reservations:
+          memory: 512m
+    logging: *logging
+
+volumes:
+  documenso-db:
+    # Named volume, so `docker compose down` cannot take the database with it
+    # (only `down -v` can). Backups do NOT rely on this volume — see the
+    # pg_dumpall note in backup/README.md.
+    name: documenso-db

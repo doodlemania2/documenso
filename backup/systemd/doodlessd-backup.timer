@@ -1,0 +1,21 @@
+[Unit]
+Description=Daily doodlessd backup
+Documentation=https://github.com/doodlemania2/documenso/blob/main/backup/README.md
+
+[Timer]
+# 03:17 UTC — the host runs on UTC. Off the hour on purpose: every other timer
+# on this box (logrotate, dpkg-db-backup, man-db) fires at :00, and piling onto
+# that peak makes the backup slower and the host briefly unresponsive.
+OnCalendar=*-*-* 03:17:00
+# Spread the start so a fleet of hosts on the same schedule does not hit the
+# same bucket at the same second. Harmless with one host, correct with two.
+RandomizedDelaySec=15m
+# The reason this is not a cron job. If the host was asleep, off, or rebooting
+# at 03:17, the run happens at next boot instead of being silently skipped —
+# and a silently skipped backup is indistinguishable from a working one until
+# you need it.
+Persistent=true
+Unit=doodlessd-backup.service
+
+[Install]
+WantedBy=timers.target

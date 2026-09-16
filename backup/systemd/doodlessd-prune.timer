@@ -1,0 +1,13 @@
+[Unit]
+Description=Weekly doodlessd backup retention and integrity check
+
+[Timer]
+# Sunday 05:40 UTC — well clear of the 03:17 backup plus its 15m jitter plus a
+# slow run, so the two never contend for the repository in the normal case.
+OnCalendar=Sun *-*-* 05:40:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=doodlessd-prune.service
+
+[Install]
+WantedBy=timers.target

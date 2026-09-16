@@ -1,0 +1,39 @@
+# The daily backup. Triggered by doodlessd-backup.timer, never enabled itself.
+[Unit]
+Description=doodlessd whole-host backup (restic)
+Documentation=https://github.com/doodlemania2/documenso/blob/main/backup/README.md
+# The job shells into running containers to take pg_dumpall, so the docker
+# daemon has to be up first. Wants= not Requires=: if docker is broken the
+# backup should still run and back up the FILES, and warn about the databases
+# it could not dump, rather than not run at all.
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/doodlessd-backup.sh
+
+# %n expands to this unit's name, so the handler can pull the right journal.
+OnFailure=doodlessd-backup-failed@%n.service
+
+# A remote repository over a slow link can take a while; an unbounded run that
+# hangs on a dead SFTP host would hold the flock and silently skip every
+# subsequent day. 4h is generous for this data volume and still bounded.
+TimeoutStartSec=4h
+
+# Never let the backup starve the services it exists to protect. NPM answering
+# requests matters more, right now, than the backup finishing five minutes
+# sooner.
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=20
+IOWeight=20
+
+# Deliberately NOT hardened with ProtectSystem/PrivateTmp/ReadOnlyPaths. This
+# job's whole purpose is to read every sensitive path on the host and talk to
+# the docker socket; a sandbox tight enough to be worth having would break it,
+# and a sandbox loose enough to work would be decoration.
+User=root
+
+[Install]
+WantedBy=multi-user.target

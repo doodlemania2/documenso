@@ -1,0 +1,18 @@
+# OnFailure= handler, templated on the failed unit's name.
+#
+# Instantiated as doodlessd-backup-failed@doodlessd-backup.service etc. The
+# instance name is the unit that failed, which is how the handler knows whose
+# journal to quote.
+#
+# This covers what the scripts' own ERR traps cannot: OOM kills, SIGKILL,
+# TimeoutStartSec, and any failure before bash finished loading its config.
+[Unit]
+Description=Report failure of %i to the oltp-relay
+
+[Service]
+Type=oneshot
+# %i is the escaped instance name — the unit that failed.
+ExecStart=/usr/local/sbin/doodlessd-backup-failed.sh %i
+User=root
+# Short and bounded. A reporting path that hangs turns one failure into two.
+TimeoutStartSec=2m

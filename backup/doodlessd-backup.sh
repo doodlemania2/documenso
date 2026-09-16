@@ -296,6 +296,13 @@ EXCLUDES=(
   # restore time. They dominate the NPM directory and would dominate the
   # backup's change rate.
   --exclude "${NPM_DATA}/logs"
+  # The credentials file must NOT go into the repository it unlocks. Two reasons, and
+  # the second is the sharper one: it is circular (you cannot read it without already
+  # holding the password it contains), and it carries the S3 keys — so anyone who got
+  # the repository password would also get the ability to DELETE every backup in the
+  # bucket. The non-secret half of this config lives in git; the secrets live in the
+  # password manager. Neither belongs here.
+  --exclude "/etc/doodlessd-backup/backup.env"
   # Backup files someone left in a stack directory; the real thing is already
   # in the set.
   --exclude "*.bak-*"

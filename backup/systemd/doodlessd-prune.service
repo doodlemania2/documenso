@@ -5,11 +5,13 @@ Description=doodlessd backup retention and integrity check (restic)
 Documentation=https://github.com/doodlemania2/documenso/blob/main/backup/README.md
 Wants=network-online.target
 After=network-online.target
+# OnFailure belongs in [Unit]. systemd silently IGNORES it under [Service]
+# ("Unknown key name"), which disables the failure alert while looking correct.
+OnFailure=doodlessd-backup-failed@%n.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/doodlessd-prune.sh
-OnFailure=doodlessd-backup-failed@%n.service
 # --read-data-subset downloads and re-hashes pack files, which on a remote
 # repository is the long pole. 6h, and it holds the shared flock the whole
 # time — which is why the backup job takes that lock with -n and skips rather

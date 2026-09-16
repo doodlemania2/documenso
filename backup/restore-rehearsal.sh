@@ -43,6 +43,11 @@ PASS=0; FAIL=0
 log()  { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 ok()   { printf '  \033[32mPASS\033[0m %s\n' "$*"; PASS=$((PASS+1)); }
 bad()  { printf '  \033[31mFAIL\033[0m %s\n' "$*"; FAIL=$((FAIL+1)); }
+# SKIP is not PASS and not FAIL. It exists for the one honest case: a thing that is
+# genuinely not deployed yet cannot be restored, and calling that a failure would leave
+# the rehearsal permanently red — which is the fastest way to teach everyone to ignore
+# it. The moment PG_CONTAINERS names a container, these become real checks again.
+skip() { printf '  \033[33mSKIP\033[0m %s\n' "$*"; }
 die()  { printf 'FATAL: %s\n' "$*" >&2; exit 1; }
 
 [[ "$(id -u)" -eq 0 ]] || die "run as root"
@@ -77,10 +82,22 @@ log "restoring latest snapshot into $WORK_DIR"
 restic restore latest --tag doodlessd --target "$WORK_DIR" \
   || die "restic restore failed — STOP. The backup is not a backup."
 
-# restic restores absolute paths under the target, so /var/backups/doodlessd
-# lands at $WORK_DIR/var/backups/doodlessd.
-STAGED="${WORK_DIR}/var/backups/doodlessd"
-[[ -d "$STAGED" ]] && ok "staged dumps directory restored" || bad "no staged dumps in the snapshot"
+# restic restores absolute paths under the target, so $STAGE_DIR lands at
+# $WORK_DIR$STAGE_DIR.
+#
+# Derived from the CONFIG, never hardcoded. It was hardcoded to /var/backups/doodlessd
+# once, while backup.env staged to /var/tmp/doodlessd-backup — so the rehearsal reported
+# "no NPM database in the snapshot" against a snapshot that contained it perfectly well.
+# A verifier that fails for the wrong reason is worse than no verifier: it teaches you
+# to skim past a red line, and the day the red line is real you skim past that too.
+STAGED="${WORK_DIR}${STAGE_DIR:-/var/tmp/doodlessd-backup}"
+if [[ -d "$STAGED" ]]; then
+  ok "staged dumps directory restored"
+elif [[ -z "${PG_CONTAINERS// /}" ]]; then
+  skip "no staged dumps expected — PG_CONTAINERS is empty"
+else
+  bad "no staged dumps in the snapshot"
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Postgres — load the dump into a throwaway cluster and QUERY it
@@ -143,6 +160,8 @@ if [[ -s "$DUMP" ]]; then
   else
     bad "Document table not readable (got: ${docs})"
   fi
+elif [[ -z "${PG_CONTAINERS// /}" ]]; then
+  skip "no Postgres dump expected — PG_CONTAINERS is empty (Documenso not deployed yet)"
 else
   bad "no Documenso dump in the snapshot — check PG_CONTAINERS and whether the container was running"
 fi
@@ -190,8 +209,7 @@ fi
 
 for f in \
   "${WORK_DIR}/home/derek/npm-stack/docker-compose.yml" \
-  "${WORK_DIR}/home/derek/docs-stack/docker-compose.yml" \
-  "${WORK_DIR}/etc/doodlessd-backup/backup.env"
+  "${WORK_DIR}/home/derek/docs-stack/docker-compose.yml"
 do
   [[ -s "$f" ]] && ok "restored ${f#"$WORK_DIR"}" || bad "missing ${f#"$WORK_DIR"}"
 done

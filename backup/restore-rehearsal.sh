@@ -153,12 +153,26 @@ if [[ -s "$DUMP" ]]; then
   # is simultaneously the test that the uploaded documents survived. If the
   # upload transport is ever switched to s3, this check stops meaning that and
   # an object-store restore test has to be added here.
-  docs=$(docker exec "$SCRATCH_CONTAINER" psql -tAU postgres -d documenso \
-           -c 'SELECT count(*) FROM "Document";' 2>/dev/null || echo ERR)
-  if [[ "$docs" =~ ^[0-9]+$ ]]; then
-    ok "Document table readable (${docs} row(s))"
+  # Documenso 2.x renamed the core table: v1's "Document" is v2's "Envelope", and the
+  # v2 API is envelope-based throughout. Querying "Document" against a 2.x dump fails
+  # with a table-not-found that looks exactly like a broken backup. Ask for whichever
+  # this dump actually has, so the rehearsal keeps working across that rename in either
+  # direction rather than reporting a restore failure that is really a schema change.
+  doc_table=$(docker exec "$SCRATCH_CONTAINER" psql -tAU postgres -d documenso \
+    -c "SELECT table_name FROM information_schema.tables
+         WHERE table_schema='public' AND table_name IN ('Envelope','Document')
+         ORDER BY CASE table_name WHEN 'Envelope' THEN 0 ELSE 1 END LIMIT 1;" 2>/dev/null)
+  doc_table=${doc_table//[[:space:]]/}
+  if [[ -z "$doc_table" ]]; then
+    bad "neither Envelope nor Document exists in the restored database"
   else
-    bad "Document table not readable (got: ${docs})"
+    docs=$(docker exec "$SCRATCH_CONTAINER" psql -tAU postgres -d documenso \
+             -c "SELECT count(*) FROM \"${doc_table}\";" 2>/dev/null || echo ERR)
+    if [[ "$docs" =~ ^[0-9]+$ ]]; then
+      ok "${doc_table} table readable (${docs} row(s))"
+    else
+      bad "${doc_table} table not readable (got: ${docs})"
+    fi
   fi
 elif [[ -z "${PG_CONTAINERS// /}" ]]; then
   skip "no Postgres dump expected — PG_CONTAINERS is empty (Documenso not deployed yet)"

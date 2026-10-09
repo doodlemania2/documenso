@@ -102,18 +102,14 @@ services:
       # so a hand-edited .env on the server cannot quietly change it.
       #
       # `local` signing transport: a .p12 on disk, passphrase from .env.
+      # Self-signed, so Acrobat shows "validity unknown" rather than a green check.
       #
-      # TODO(issue #2): the real SSL.com certificate will live in **Azure Key
-      # Vault Premium as a non-exportable RSA-HSM key**. The `local` transport
-      # CANNOT use it — `local` requires the private key material as a file or
-      # base64 blob, and the entire point of a non-exportable HSM key is that
-      # the private key never leaves the vault. Documenso's shipped transports
-      # are `local`, `gcloud-hsm` and `csc`; none of them speak Azure Key
-      # Vault. Getting there needs an `AzureKeyVaultSigner` in our fork and a
-      # custom image built from it. Until that exists, this stack signs with a
-      # certificate we hold on disk, and that is what these settings say.
-      # Do not read the presence of an Azure tenant anywhere as evidence that
-      # the KV path works — it does not, today.
+      # The publicly trusted SSL.com certificate lives in Azure Key Vault as a
+      # non-exportable RSA-HSM key, which `local` can never use. Signing with it
+      # needs our image (fork/, upstream + the AzureKeyVaultSigner patch) and the
+      # overlay docker-compose.azure-kv.yml, which switches the transport. This
+      # base file deliberately stays on `local`: it is the rollback target, and it
+      # must describe a stack that runs without the overlay. See fork/README.md.
       NEXT_PRIVATE_SIGNING_TRANSPORT: local
       NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /opt/documenso/cert.p12
       # Documents are stored as bytes in Postgres (the upstream default). That

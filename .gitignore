@@ -5,6 +5,8 @@
 !.env.example
 *.env
 !*.env.example
+# Build pins (upstream tag, commit, image tag). No secrets; build.sh needs it.
+!fork/pins.env
 backup.env
 
 # Signing material. The .p12 and anything that could be turned back into it.
@@ -24,3 +26,6 @@ backup.env
 
 # Local credential files (never committed). Mirrors the K3s/.secrets convention.
 .secrets/
+
+# Working clone of upstream Documenso for developing fork/patches (see fork/README.md).
+fork/upstream/

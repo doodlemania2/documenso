@@ -1,0 +1,1239 @@
+diff --git a/.env.example b/.env.example
+index 5f3da7c..b44bd56 100644
+--- a/.env.example
++++ b/.env.example
+@@ -48,7 +48,7 @@ NEXT_PRIVATE_DATABASE_URL="postgres://documenso:password@127.0.0.1:54320/documen
+ NEXT_PRIVATE_DIRECT_DATABASE_URL="postgres://documenso:password@127.0.0.1:54320/documenso"
+ 
+ # [[SIGNING]]
+-# The transport to use for document signing. Available options: local (default) | gcloud-hsm | csc
++# The transport to use for document signing. Available options: local (default) | gcloud-hsm | azure-kv | csc
+ NEXT_PRIVATE_SIGNING_TRANSPORT="local"
+ # OPTIONAL: The passphrase to use for the local file-based signing transport.
+ NEXT_PRIVATE_SIGNING_PASSPHRASE=
+@@ -70,6 +70,13 @@ NEXT_PRIVATE_SIGNING_GCLOUD_HSM_CERT_CHAIN_FILE_PATH=
+ NEXT_PRIVATE_SIGNING_GCLOUD_HSM_CERT_CHAIN_CONTENTS=
+ # OPTIONAL: The Google Secret Manager path to retrieve the certificate for the gcloud-hsm signing transport.
+ NEXT_PRIVATE_SIGNING_GCLOUD_HSM_SECRET_MANAGER_CERT_PATH=
++# OPTIONAL: The full, versioned Azure Key Vault key identifier for the azure-kv signing transport.
++# Credentials are read by EnvironmentCredential: AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_CERTIFICATE_PATH (or AZURE_CLIENT_SECRET).
++NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID=
++# OPTIONAL: The path to the certificate chain (signing certificate first) for the azure-kv signing transport.
++NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH=
++# OPTIONAL: The base64-encoded contents of the certificate chain for the azure-kv signing transport.
++NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_CONTENTS=
+ # OPTIONAL: The base URL of the Cloud Signature Consortium (CSC) provider for the csc signing transport.
+ NEXT_PRIVATE_SIGNING_CSC_PROVIDER_BASE_URL=
+ # OPTIONAL: The OAuth client ID registered with the CSC provider for the csc signing transport.
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index d3cee2f..0b77e44 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -206,6 +206,7 @@ Cryptographically signs PDF documents.
+ | ---------------- | -------------------- | ------------ |
+ | Local            | P12 certificate file | `local`      |
+ | Google Cloud HSM | Google Cloud KMS     | `gcloud-hsm` |
++| Azure Key Vault  | Azure Key Vault HSM  | `azure-kv`   |
+ 
+ **Config**: `NEXT_PRIVATE_SIGNING_TRANSPORT`
+ 
+diff --git a/apps/docs/content/docs/self-hosting/configuration/environment.mdx b/apps/docs/content/docs/self-hosting/configuration/environment.mdx
+index bc4acd1..13723e5 100644
+--- a/apps/docs/content/docs/self-hosting/configuration/environment.mdx
++++ b/apps/docs/content/docs/self-hosting/configuration/environment.mdx
+@@ -203,7 +203,7 @@ Documenso requires a certificate to digitally sign documents.
+ 
+ | Variable                         | Description                                       | Default |
+ | -------------------------------- | ------------------------------------------------- | ------- |
+-| `NEXT_PRIVATE_SIGNING_TRANSPORT` | Signing backend: `local`, `gcloud-hsm`, or `csc`  | `local` |
++| `NEXT_PRIVATE_SIGNING_TRANSPORT` | Signing backend: `local`, `gcloud-hsm`, `azure-kv`, or `csc` | `local` |
+ 
+ ### Local Signing
+ 
+diff --git a/apps/docs/content/docs/self-hosting/configuration/signing-certificate/azure-key-vault.mdx b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/azure-key-vault.mdx
+new file mode 100644
+index 0000000..4aec61d
+--- /dev/null
++++ b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/azure-key-vault.mdx
+@@ -0,0 +1,81 @@
++---
++title: Azure Key Vault
++description: Sign with a non-exportable HSM-backed key held in Azure Key Vault.
++---
++
++import { Callout } from 'fumadocs-ui/components/callout';
++import { Step, Steps } from 'fumadocs-ui/components/steps';
++
++Azure Key Vault Premium (and Managed HSM) keeps the signing key in a hardware security module. The private key never leaves the vault: Documenso hashes the document locally and sends only the digest to Key Vault's `sign` operation.
++
++This is the usual way to hold a publicly trusted document-signing certificate (for example an Adobe AATL certificate), because certificate authorities issue those only for keys generated and kept in an HSM.
++
++## Prerequisites
++
++{/* prettier-ignore */}
++<Steps>
++<Step>
++### Create the key and certificate request in Key Vault
++
++In a **Premium** vault, create a certificate with an external issuer and a non-exportable `RSA-HSM` key. Key Vault generates the key and gives you a CSR to send to your certificate authority.
++
++</Step>
++<Step>
++### Merge the issued certificate
++
++When the authority returns the certificate, merge it into the pending request (`az keyvault certificate pending merge`). Key Vault refuses a certificate that was not issued for the request's key.
++
++</Step>
++<Step>
++### Create an identity that can sign
++
++Create a service principal and give it the **Key Vault Crypto User** role, scoped to the one key rather than the whole vault. It needs nothing else: the certificate chain is supplied to Documenso directly, so it does not need to read the vault's secrets.
++
++</Step>
++</Steps>
++
++## Environment Variables
++
++| Variable                                             | Description                                                                  |
++| ---------------------------------------------------- | ---------------------------------------------------------------------------- |
++| `NEXT_PRIVATE_SIGNING_TRANSPORT`                     | Set to `azure-kv`                                                            |
++| `NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID`               | Full key identifier **including the version**                                |
++| `NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH` | Path to a PEM file: the signing certificate first, then its intermediates    |
++| `NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_CONTENTS`  | Base64-encoded contents of the same PEM file (alternative to the path)       |
++| `AZURE_TENANT_ID`                                    | Tenant of the service principal                                              |
++| `AZURE_CLIENT_ID`                                    | Application (client) ID of the service principal                             |
++| `AZURE_CLIENT_CERTIFICATE_PATH`                      | Path to the service principal's certificate and private key (PEM)            |
++| `AZURE_CLIENT_SECRET`                                | Client secret, if you use one instead of a certificate                       |
++
++The `AZURE_*` variables are read by the Azure SDK's `EnvironmentCredential`.
++
++## Configuration Example
++
++```bash
++NEXT_PRIVATE_SIGNING_TRANSPORT=azure-kv
++NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID=https://my-vault.vault.azure.net/keys/documenso-signing/0123456789abcdef0123456789abcdef
++NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH=/opt/documenso/signing-chain.pem
++AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
++AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
++AZURE_CLIENT_CERTIFICATE_PATH=/opt/documenso/azure-signer.pem
++```
++
++Get the versioned key identifier with:
++
++```bash
++az keyvault certificate show --vault-name my-vault -n documenso-signing --query kid -o tsv
++```
++
++<Callout type="warn">
++  The key identifier must include the version. Renewing a Key Vault certificate creates a new key version; an unversioned identifier would start signing with the new key while Documenso still embeds the old certificate, and every signature would fail validation.
++</Callout>
++
++## Startup check
++
++When the signer is first created, Documenso compares the public key in the signing certificate with the public key of the Key Vault key and refuses to sign if they differ. A certificate issued for a different key cannot produce valid signatures, so this fails loudly at the first seal instead of producing documents that every validator rejects.
++
++The certificate status endpoint (`/api/certificate-status`, also used by `/api/health`) checks only that the configured certificate is within its validity period. It runs on every health probe, so it does not call Key Vault.
++
++## Timestamps
++
++Configure a [timestamp server](/docs/self-hosting/configuration/signing-certificate/timestamp-server). Without one, signatures stop validating when the signing certificate expires.
+diff --git a/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json
+index b52f83f..342f4ac 100644
+--- a/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json
++++ b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json
+@@ -1,4 +1,4 @@
+ {
+   "title": "Signing Certificate",
+-  "pages": ["...index", "local", "google-cloud-hsm", "csc-qes", "timestamp-server", "troubleshooting"]
++  "pages": ["...index", "local", "google-cloud-hsm", "azure-key-vault", "csc-qes", "timestamp-server", "troubleshooting"]
+ }
+diff --git a/package-lock.json b/package-lock.json
+index 2e3d9c1..68ca03a 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -276,31 +276,6 @@
+       "dev": true,
+       "license": "MIT"
+     },
+-    "apps/documentation": {
+-      "name": "@documenso/documentation",
+-      "version": "0.1.0",
+-      "extraneous": true,
+-      "dependencies": {
+-        "@documenso/assets": "*",
+-        "@documenso/lib": "*",
+-        "@documenso/tailwind-config": "*",
+-        "@documenso/trpc": "*",
+-        "@documenso/ui": "*",
+-        "next": "15.5.12",
+-        "next-plausible": "^3.12.5",
+-        "nextra": "^3",
+-        "nextra-theme-docs": "^3",
+-        "react": "^18",
+-        "react-dom": "^18"
+-      },
+-      "devDependencies": {
+-        "@types/node": "^20",
+-        "@types/react": "18.3.27",
+-        "@types/react-dom": "^18",
+-        "pagefind": "^1.2.0",
+-        "typescript": "5.6.2"
+-      }
+-    },
+     "apps/openpage-api": {
+       "name": "@documenso/openpage-api",
+       "version": "1.0.0",
+@@ -2168,6 +2143,55 @@
+         "node": ">=18.0.0"
+       }
+     },
++    "node_modules/@azure-rest/core-client": {
++      "version": "2.9.0",
++      "resolved": "https://registry.npmjs.org/@azure-rest/core-client/-/core-client-2.9.0.tgz",
++      "integrity": "sha512-6933vNLqh06RR7rumnrq3UZIeBtRLeBHDPMrieDPIljiCaMMwt0nRw++nd3TOxiohtasNtm29rC+b/9ZVKCOqg==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure/abort-controller": "^2.1.2",
++        "@azure/core-auth": "^1.10.0",
++        "@azure/core-rest-pipeline": "^1.24.0",
++        "@azure/core-tracing": "^1.3.0",
++        "@typespec/ts-http-runtime": "^0.3.8",
++        "tslib": "^2.6.2"
++      },
++      "engines": {
++        "node": ">=22.0.0"
++      }
++    },
++    "node_modules/@azure-rest/core-client/node_modules/@azure/core-rest-pipeline": {
++      "version": "1.25.0",
++      "resolved": "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.25.0.tgz",
++      "integrity": "sha512-bMs8ekJLjX8wPV+9IPBges1SLPyuDtE9g5gLDWOpxzKcoOFQnpLGkbcT1tdw3FaAmDS1gnPmMmJ6y/T5B96kIA==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure/abort-controller": "^2.1.2",
++        "@azure/core-auth": "^1.10.0",
++        "@azure/core-tracing": "^1.3.0",
++        "@azure/core-util": "^1.13.0",
++        "@azure/logger": "^1.3.0",
++        "@typespec/ts-http-runtime": "^0.3.4",
++        "tslib": "^2.6.2"
++      },
++      "engines": {
++        "node": ">=22.0.0"
++      }
++    },
++    "node_modules/@azure-rest/core-client/node_modules/@typespec/ts-http-runtime": {
++      "version": "0.3.9",
++      "resolved": "https://registry.npmjs.org/@typespec/ts-http-runtime/-/ts-http-runtime-0.3.9.tgz",
++      "integrity": "sha512-edSdeAqkdxBVzA1yL1LrLCml1YjyCVvPMtMqJpbF+6K609tHe8V6sQUzFQSGcYNhcuhOceZtjvN32+mpIth30A==",
++      "license": "MIT",
++      "dependencies": {
++        "http-proxy-agent": "^7.0.0",
++        "https-proxy-agent": "^7.0.0",
++        "tslib": "^2.6.2"
++      },
++      "engines": {
++        "node": ">=22.0.0"
++      }
++    },
+     "node_modules/@azure/abort-controller": {
+       "version": "2.1.2",
+       "resolved": "https://registry.npmjs.org/@azure/abort-controller/-/abort-controller-2.1.2.tgz",
+@@ -2255,6 +2279,15 @@
+         "node": ">=18.0.0"
+       }
+     },
++    "node_modules/@azure/core-process": {
++      "version": "1.0.0",
++      "resolved": "https://registry.npmjs.org/@azure/core-process/-/core-process-1.0.0.tgz",
++      "integrity": "sha512-/shnJ+ooO8WPxDhPEeI/2oRQuubn16gZ6CvlbpWbEswZfzwI9tI/sMAHmF3x1LuQ9yZYXfLW3TjzGMLEC5blKg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=22.0.0"
++      }
++    },
+     "node_modules/@azure/core-rest-pipeline": {
+       "version": "1.23.0",
+       "resolved": "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.23.0.tgz",
+@@ -2312,6 +2345,88 @@
+         "node": ">=20.0.0"
+       }
+     },
++    "node_modules/@azure/identity": {
++      "version": "4.13.3",
++      "resolved": "https://registry.npmjs.org/@azure/identity/-/identity-4.13.3.tgz",
++      "integrity": "sha512-zGQPtqvXPgSA8yfV2CkIQ1qirqk0p9AIVpC5uEkdXQYcKl07QHvyaGYRnZOk0AsQUmxNb4wfkcwY5di8Z5xa9A==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure/abort-controller": "^2.0.0",
++        "@azure/core-auth": "^1.9.0",
++        "@azure/core-client": "^1.9.2",
++        "@azure/core-process": "^1.0.0",
++        "@azure/core-rest-pipeline": "^1.17.0",
++        "@azure/core-tracing": "^1.0.0",
++        "@azure/core-util": "^1.11.0",
++        "@azure/logger": "^1.0.0",
++        "@azure/msal-browser": "^5.5.0",
++        "@azure/msal-node": "^6.0.0",
++        "open": "^10.1.0",
++        "tslib": "^2.2.0"
++      },
++      "engines": {
++        "node": ">=22.0.0"
++      }
++    },
++    "node_modules/@azure/identity/node_modules/open": {
++      "version": "10.2.0",
++      "resolved": "https://registry.npmjs.org/open/-/open-10.2.0.tgz",
++      "integrity": "sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA==",
++      "license": "MIT",
++      "dependencies": {
++        "default-browser": "^5.2.1",
++        "define-lazy-prop": "^3.0.0",
++        "is-inside-container": "^1.0.0",
++        "wsl-utils": "^0.1.0"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
++    "node_modules/@azure/keyvault-common": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/@azure/keyvault-common/-/keyvault-common-2.1.0.tgz",
++      "integrity": "sha512-aCDidWuKY06LWQ4x7/8TIXK6iRqTaRWRL3t7T+LC+j1b07HtoIsOxP/tU90G4jCSBn5TAyUTCtA4MS/y5Hudaw==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure-rest/core-client": "^2.3.3",
++        "@azure/abort-controller": "^2.0.0",
++        "@azure/core-auth": "^1.3.0",
++        "@azure/core-rest-pipeline": "^1.8.0",
++        "@azure/core-tracing": "^1.0.0",
++        "@azure/core-util": "^1.10.0",
++        "@azure/logger": "^1.1.4",
++        "tslib": "^2.2.0"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
++    "node_modules/@azure/keyvault-keys": {
++      "version": "4.10.2",
++      "resolved": "https://registry.npmjs.org/@azure/keyvault-keys/-/keyvault-keys-4.10.2.tgz",
++      "integrity": "sha512-VmUSLbXRAbSzDD8grXHGPaknYs0SKr3yuf6U+d4XMpX4XuVYskNqbTTwXce0zR1LyxfTZm9rWEBcvs3vdYwCmQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure-rest/core-client": "^2.3.3",
++        "@azure/abort-controller": "^2.1.2",
++        "@azure/core-auth": "^1.9.0",
++        "@azure/core-lro": "^2.7.2",
++        "@azure/core-paging": "^1.6.2",
++        "@azure/core-rest-pipeline": "^1.19.0",
++        "@azure/core-tracing": "^1.2.0",
++        "@azure/core-util": "^1.11.0",
++        "@azure/keyvault-common": "^2.1.0",
++        "@azure/logger": "^1.1.4",
++        "tslib": "^2.8.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
+     "node_modules/@azure/logger": {
+       "version": "1.3.0",
+       "resolved": "https://registry.npmjs.org/@azure/logger/-/logger-1.3.0.tgz",
+@@ -2325,6 +2440,49 @@
+         "node": ">=20.0.0"
+       }
+     },
++    "node_modules/@azure/msal-browser": {
++      "version": "5.24.0",
++      "resolved": "https://registry.npmjs.org/@azure/msal-browser/-/msal-browser-5.24.0.tgz",
++      "integrity": "sha512-jS1stt81tslcVZi7fqVD+g6vr8w/IWqFl/vAB2dx/6EOroQDuCR4+z0o3C+d6a/GpLATvdoO+kwnDcYzsBXKQA==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure/msal-common": "16.14.2"
++      },
++      "engines": {
++        "node": ">=0.8.0"
++      }
++    },
++    "node_modules/@azure/msal-common": {
++      "version": "16.14.2",
++      "resolved": "https://registry.npmjs.org/@azure/msal-common/-/msal-common-16.14.2.tgz",
++      "integrity": "sha512-HOBR0Gfo39TMrkxNG8k6cfjRkrRjXZc3JQs3ebMWQc9S4cihuknMYra3sgmzbZB752oQBqBN9+WF7c826p2vIQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=0.8.0"
++      }
++    },
++    "node_modules/@azure/msal-node": {
++      "version": "6.0.1",
++      "resolved": "https://registry.npmjs.org/@azure/msal-node/-/msal-node-6.0.1.tgz",
++      "integrity": "sha512-ixSO1Y/kCVRthRs+hSx/5qkwaunX1/RAePhlMN0wIpIQ4WEZ6AREGGnGd1AP0qspHVsAwzWQKGubpjh50JyJIQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@azure/msal-common": "16.14.1",
++        "jsonwebtoken": "^9.0.0"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
++    "node_modules/@azure/msal-node/node_modules/@azure/msal-common": {
++      "version": "16.14.1",
++      "resolved": "https://registry.npmjs.org/@azure/msal-common/-/msal-common-16.14.1.tgz",
++      "integrity": "sha512-Or6xhPNyi4zHW25158yxBoyxuCqNSPa5YBVqfF1J5Ks4MJWBo/USXdp05DQIPu1Zli00YZu6t0+h6KvHJealxQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=0.8.0"
++      }
++    },
+     "node_modules/@azure/storage-blob": {
+       "version": "12.31.0",
+       "resolved": "https://registry.npmjs.org/@azure/storage-blob/-/storage-blob-12.31.0.tgz",
+@@ -15987,6 +16145,21 @@
+         "node": ">=12.0.0"
+       }
+     },
++    "node_modules/bundle-name": {
++      "version": "4.1.1",
++      "resolved": "https://registry.npmjs.org/bundle-name/-/bundle-name-4.1.1.tgz",
++      "integrity": "sha512-DdH81/zPLVS11EUgWq3tEu/xn+EzljlMYooDNdzWEnFha3R3NBMpMV1UqYIpjYHV/SgpFKMIX1Oh7o06SjM/oA==",
++      "license": "MIT",
++      "dependencies": {
++        "run-applescript": "^7.0.0"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/bytes": {
+       "version": "3.1.2",
+       "resolved": "https://registry.npmjs.org/bytes/-/bytes-3.1.2.tgz",
+@@ -17975,6 +18148,34 @@
+         "node": ">=16.0.0"
+       }
+     },
++    "node_modules/default-browser": {
++      "version": "5.5.1",
++      "resolved": "https://registry.npmjs.org/default-browser/-/default-browser-5.5.1.tgz",
++      "integrity": "sha512-m1pAzaJgZ/gssEqlOhJkPJp8Xly7QyW6xcrkUa2KKcDeDSEMP7X8xipU3snUcfisTQx0w1AGae+9UtJSfVnXGw==",
++      "license": "MIT",
++      "dependencies": {
++        "bundle-name": "^4.1.0",
++        "default-browser-id": "^5.0.0"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
++    "node_modules/default-browser-id": {
++      "version": "5.0.1",
++      "resolved": "https://registry.npmjs.org/default-browser-id/-/default-browser-id-5.0.1.tgz",
++      "integrity": "sha512-x1VCxdX4t+8wVfd1so/9w+vQ4vx7lKd2Qp5tDRutErwmR85OgmfX7RlLRMWafRMY7hbEiXIbudNrjOAPa/hL8Q==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/defaults": {
+       "version": "1.0.4",
+       "resolved": "https://registry.npmjs.org/defaults/-/defaults-1.0.4.tgz",
+@@ -18005,6 +18206,18 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/define-lazy-prop": {
++      "version": "3.0.0",
++      "resolved": "https://registry.npmjs.org/define-lazy-prop/-/define-lazy-prop-3.0.0.tgz",
++      "integrity": "sha512-N+MeXYoqr3pOgn8xfyRPREN7gHakLYjhsHhWGT3fWAiL4IkAt0iDw14QiiEm2bE30c5XX5q0FtAA3CK5f9/BUg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=12"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/defu": {
+       "version": "6.1.7",
+       "resolved": "https://registry.npmjs.org/defu/-/defu-6.1.7.tgz",
+@@ -21622,6 +21835,21 @@
+         "url": "https://github.com/sponsors/wooorm"
+       }
+     },
++    "node_modules/is-docker": {
++      "version": "3.0.0",
++      "resolved": "https://registry.npmjs.org/is-docker/-/is-docker-3.0.0.tgz",
++      "integrity": "sha512-eljcgEDlEns/7AXFosB5K/2nCM4P7FQPkGc/DWLy5rmFEWvZayGrik1d9/QIY5nJ4f9YsVvBkA6kJpHn9rISdQ==",
++      "license": "MIT",
++      "bin": {
++        "is-docker": "cli.js"
++      },
++      "engines": {
++        "node": "^12.20.0 || ^14.13.1 || >=16.0.0"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/is-extglob": {
+       "version": "2.1.1",
+       "resolved": "https://registry.npmjs.org/is-extglob/-/is-extglob-2.1.1.tgz",
+@@ -21669,6 +21897,24 @@
+         "url": "https://github.com/sponsors/wooorm"
+       }
+     },
++    "node_modules/is-inside-container": {
++      "version": "1.0.0",
++      "resolved": "https://registry.npmjs.org/is-inside-container/-/is-inside-container-1.0.0.tgz",
++      "integrity": "sha512-KIYLCCJghfHZxqjYBE7rEy0OBuTd5xCHS7tHVgvCLkx7StIoaxwNW3hCALgEUjFfeRk+MG/Qxmp/vtETEF3tRA==",
++      "license": "MIT",
++      "dependencies": {
++        "is-docker": "^3.0.0"
++      },
++      "bin": {
++        "is-inside-container": "cli.js"
++      },
++      "engines": {
++        "node": ">=14.16"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/is-interactive": {
+       "version": "1.0.0",
+       "resolved": "https://registry.npmjs.org/is-interactive/-/is-interactive-1.0.0.tgz",
+@@ -21790,6 +22036,21 @@
+         "url": "https://github.com/sponsors/mesqueeb"
+       }
+     },
++    "node_modules/is-wsl": {
++      "version": "3.1.1",
++      "resolved": "https://registry.npmjs.org/is-wsl/-/is-wsl-3.1.1.tgz",
++      "integrity": "sha512-e6rvdUCiQCAuumZslxRJWR/Doq4VpPR82kqclvcS0efgt430SlGIk05vdCN58+VrzgtIcfNODjozVielycD4Sw==",
++      "license": "MIT",
++      "dependencies": {
++        "is-inside-container": "^1.0.0"
++      },
++      "engines": {
++        "node": ">=16"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/isarray": {
+       "version": "2.0.5",
+       "resolved": "https://registry.npmjs.org/isarray/-/isarray-2.0.5.tgz",
+@@ -22139,6 +22400,28 @@
+         "node": "*"
+       }
+     },
++    "node_modules/jsonwebtoken": {
++      "version": "9.0.3",
++      "resolved": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.3.tgz",
++      "integrity": "sha512-MT/xP0CrubFRNLNKvxJ2BYfy53Zkm++5bX9dtuPbqAeQpTVe0MQTFhao8+Cp//EmJp244xt6Drw/GVEGCUj40g==",
++      "license": "MIT",
++      "dependencies": {
++        "jws": "^4.0.1",
++        "lodash.includes": "^4.3.0",
++        "lodash.isboolean": "^3.0.3",
++        "lodash.isinteger": "^4.0.4",
++        "lodash.isnumber": "^3.0.3",
++        "lodash.isplainobject": "^4.0.6",
++        "lodash.isstring": "^4.0.1",
++        "lodash.once": "^4.0.0",
++        "ms": "^2.1.1",
++        "semver": "^7.5.4"
++      },
++      "engines": {
++        "node": ">=12",
++        "npm": ">=6"
++      }
++    },
+     "node_modules/jwa": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/jwa/-/jwa-2.0.1.tgz",
+@@ -22786,17 +23069,46 @@
+       "deprecated": "This package is deprecated. Use the optional chaining (?.) operator instead.",
+       "license": "MIT"
+     },
++    "node_modules/lodash.includes": {
++      "version": "4.3.0",
++      "resolved": "https://registry.npmjs.org/lodash.includes/-/lodash.includes-4.3.0.tgz",
++      "integrity": "sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==",
++      "license": "MIT"
++    },
+     "node_modules/lodash.isarguments": {
+       "version": "3.1.0",
+       "resolved": "https://registry.npmjs.org/lodash.isarguments/-/lodash.isarguments-3.1.0.tgz",
+       "integrity": "sha512-chi4NHZlZqZD18a0imDHnZPrDeBbTtVN7GXMwuGdRH9qotxAjYs3aVLKc7zNOG9eddR5Ksd8rvFEBc9SsggPpg==",
+       "license": "MIT"
+     },
++    "node_modules/lodash.isboolean": {
++      "version": "3.0.3",
++      "resolved": "https://registry.npmjs.org/lodash.isboolean/-/lodash.isboolean-3.0.3.tgz",
++      "integrity": "sha512-Bz5mupy2SVbPHURB98VAcw+aHh4vRV5IPNhILUCsOzRmsTmSQ17jIuqopAentWoehktxGd9e/hbIXq980/1QJg==",
++      "license": "MIT"
++    },
++    "node_modules/lodash.isinteger": {
++      "version": "4.0.4",
++      "resolved": "https://registry.npmjs.org/lodash.isinteger/-/lodash.isinteger-4.0.4.tgz",
++      "integrity": "sha512-DBwtEWN2caHQ9/imiNeEA5ys1JoRtRfY3d7V9wkqtbycnAmTvRRmbHKDV4a0EYc678/dia0jrte4tjYwVBaZUA==",
++      "license": "MIT"
++    },
++    "node_modules/lodash.isnumber": {
++      "version": "3.0.3",
++      "resolved": "https://registry.npmjs.org/lodash.isnumber/-/lodash.isnumber-3.0.3.tgz",
++      "integrity": "sha512-QYqzpfwO3/CWf3XP+Z+tkQsfaLL/EnUlXWVkIk5FUPc4sBdTehEqZONuyRt2P67PXAk+NXmTBcc97zw9t1FQrw==",
++      "license": "MIT"
++    },
+     "node_modules/lodash.isplainobject": {
+       "version": "4.0.6",
+       "resolved": "https://registry.npmjs.org/lodash.isplainobject/-/lodash.isplainobject-4.0.6.tgz",
+       "integrity": "sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==",
+-      "dev": true,
++      "license": "MIT"
++    },
++    "node_modules/lodash.isstring": {
++      "version": "4.0.1",
++      "resolved": "https://registry.npmjs.org/lodash.isstring/-/lodash.isstring-4.0.1.tgz",
++      "integrity": "sha512-0wJxfxH1wgO3GrbuP+dTTk7op+6L41QCXbGINEmD+ny/G/eCqGzxyCsh7159S+mgDDcoarnBw6PC1PS5+wUGgw==",
+       "license": "MIT"
+     },
+     "node_modules/lodash.kebabcase": {
+@@ -22820,6 +23132,12 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/lodash.once": {
++      "version": "4.1.1",
++      "resolved": "https://registry.npmjs.org/lodash.once/-/lodash.once-4.1.1.tgz",
++      "integrity": "sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==",
++      "license": "MIT"
++    },
+     "node_modules/lodash.snakecase": {
+       "version": "4.1.1",
+       "resolved": "https://registry.npmjs.org/lodash.snakecase/-/lodash.snakecase-4.1.1.tgz",
+@@ -28073,6 +28391,18 @@
+         "points-on-path": "^0.2.1"
+       }
+     },
++    "node_modules/run-applescript": {
++      "version": "7.1.0",
++      "resolved": "https://registry.npmjs.org/run-applescript/-/run-applescript-7.1.0.tgz",
++      "integrity": "sha512-DPe5pVFaAsinSaV6QjQ6gdiedWDcRCbUuiQfQa2wmWV7+xC9bGulGI8+TdRmoFkAPaBXk8CrAbnlY2ISniJ47Q==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/run-parallel": {
+       "version": "1.2.0",
+       "resolved": "https://registry.npmjs.org/run-parallel/-/run-parallel-1.2.0.tgz",
+@@ -31453,6 +31783,21 @@
+         }
+       }
+     },
++    "node_modules/wsl-utils": {
++      "version": "0.1.0",
++      "resolved": "https://registry.npmjs.org/wsl-utils/-/wsl-utils-0.1.0.tgz",
++      "integrity": "sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==",
++      "license": "MIT",
++      "dependencies": {
++        "is-wsl": "^3.1.0"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/xml-naming": {
+       "version": "0.1.0",
+       "resolved": "https://registry.npmjs.org/xml-naming/-/xml-naming-0.1.0.tgz",
+@@ -32311,22 +32656,6 @@
+         "@types/nodemailer": "^8.0.1"
+       }
+     },
+-    "packages/eslint-config": {
+-      "name": "@documenso/eslint-config",
+-      "version": "0.0.0",
+-      "extraneous": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/eslint-plugin": "^7.18.0",
+-        "@typescript-eslint/parser": "^7.18.0",
+-        "eslint": "^8.57.0",
+-        "eslint-config-turbo": "^1.13.4",
+-        "eslint-plugin-package-json": "^0.85.0",
+-        "eslint-plugin-react": "^7.37.5",
+-        "eslint-plugin-unused-imports": "^4.3.0",
+-        "typescript": "5.6.2"
+-      }
+-    },
+     "packages/lib": {
+       "name": "@documenso/lib",
+       "version": "0.0.0",
+@@ -32409,18 +32738,6 @@
+         "node": ">=4"
+       }
+     },
+-    "packages/prettier-config": {
+-      "name": "@documenso/prettier-config",
+-      "version": "0.0.0",
+-      "extraneous": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+-        "prettier": "^3.6.2",
+-        "prettier-plugin-tailwindcss": "^0.7.1"
+-      },
+-      "devDependencies": {}
+-    },
+     "packages/prisma": {
+       "name": "@documenso/prisma",
+       "version": "0.0.0",
+@@ -32952,12 +33269,16 @@
+       "version": "0.0.0",
+       "license": "AGPLv3",
+       "dependencies": {
++        "@azure/identity": "4.13.3",
++        "@azure/keyvault-keys": "4.10.2",
+         "@google-cloud/kms": "^5.2.1",
+         "@google-cloud/secret-manager": "^6.1.1",
+         "ts-pattern": "^5.9.0"
+       },
+       "devDependencies": {
+-        "@documenso/tsconfig": "*"
++        "@documenso/tsconfig": "*",
++        "asn1js": "3.0.10",
++        "pkijs": "3.4.0"
+       }
+     },
+     "packages/tailwind-config": {
+diff --git a/packages/lib/server-only/cert/cert-status.ts b/packages/lib/server-only/cert/cert-status.ts
+index a3c0fd2..eaf6734 100644
+--- a/packages/lib/server-only/cert/cert-status.ts
++++ b/packages/lib/server-only/cert/cert-status.ts
+@@ -1,5 +1,6 @@
+ import { X509Certificate } from 'node:crypto';
+ 
++import { loadAzureKeyVaultCertificates } from '@documenso/signing/transports/azure-key-vault';
+ import { createLocalSigner } from '@documenso/signing/transports/local';
+ 
+ import { NEXT_PRIVATE_SIGNING_TRANSPORT } from '../../constants/app';
+@@ -7,6 +8,9 @@ import { NEXT_PRIVATE_SIGNING_TRANSPORT } from '../../constants/app';
+ /**
+  * Whether the local P12 opens with the configured passphrase and is in date.
+  * Skips AIA so this stays offline. gcloud-hsm and csc always report available.
++ * azure-kv checks only the configured certificate's validity period: this runs on every health
++ * probe, so it reads local configuration and never calls Key Vault. A key/certificate mismatch
++ * is caught when the signer is first created instead.
+  */
+ export const getCertificateStatus = async () => {
+   const transport = NEXT_PRIVATE_SIGNING_TRANSPORT();
+@@ -17,14 +21,17 @@ export const getCertificateStatus = async () => {
+   }
+ 
+   // Anything else (typo, leftover `http`) would throw at seal time.
+-  if (transport !== 'local') {
++  if (transport !== 'local' && transport !== 'azure-kv') {
+     return { isAvailable: false };
+   }
+ 
+   try {
+-    const signer = await createLocalSigner({ buildChain: false });
++    const signingCertificate =
++      transport === 'azure-kv'
++        ? loadAzureKeyVaultCertificates()[0]
++        : (await createLocalSigner({ buildChain: false })).certificate;
+ 
+-    const certificate = new X509Certificate(Buffer.from(signer.certificate));
++    const certificate = new X509Certificate(Buffer.from(signingCertificate));
+ 
+     const now = new Date();
+ 
+diff --git a/packages/signing/index.ts b/packages/signing/index.ts
+index acb1c00..42ee201 100644
+--- a/packages/signing/index.ts
++++ b/packages/signing/index.ts
+@@ -8,6 +8,7 @@ import type { PDF, Signer } from '@libpdf/core';
+ import { match } from 'ts-pattern';
+ 
+ import { getTimestampAuthority } from './helpers/tsa';
++import { createAzureKeyVaultSigner } from './transports/azure-key-vault';
+ import { createGoogleCloudSigner } from './transports/google-cloud';
+ import { createLocalSigner } from './transports/local';
+ 
+@@ -28,6 +29,7 @@ const getSigner = async () => {
+   signer = await match(transport)
+     .with('local', async () => await createLocalSigner())
+     .with('gcloud-hsm', async () => await createGoogleCloudSigner())
++    .with('azure-kv', async () => await createAzureKeyVaultSigner())
+     .otherwise(() => {
+       throw new Error(`Unsupported signing transport: ${transport}`);
+     });
+diff --git a/packages/signing/package.json b/packages/signing/package.json
+index 600a89d..456d362 100644
+--- a/packages/signing/package.json
++++ b/packages/signing/package.json
+@@ -12,11 +12,15 @@
+     "test": "vitest"
+   },
+   "dependencies": {
++    "@azure/identity": "4.13.3",
++    "@azure/keyvault-keys": "4.10.2",
+     "@google-cloud/kms": "^5.2.1",
+     "@google-cloud/secret-manager": "^6.1.1",
+     "ts-pattern": "^5.9.0"
+   },
+   "devDependencies": {
+-    "@documenso/tsconfig": "*"
++    "@documenso/tsconfig": "*",
++    "asn1js": "3.0.10",
++    "pkijs": "3.4.0"
+   }
+ }
+diff --git a/packages/signing/transports/azure-key-vault.test.ts b/packages/signing/transports/azure-key-vault.test.ts
+new file mode 100644
+index 0000000..4217c09
+--- /dev/null
++++ b/packages/signing/transports/azure-key-vault.test.ts
+@@ -0,0 +1,186 @@
++import { constants, generateKeyPairSync, type KeyObject, privateEncrypt, verify, webcrypto } from 'node:crypto';
++
++import type { SignatureAlgorithm as KeyVaultSignatureAlgorithm } from '@azure/keyvault-keys';
++import { PDF } from '@libpdf/core';
++import * as asn1js from 'asn1js';
++import * as pkijs from 'pkijs';
++import { beforeAll, describe, expect, it } from 'vitest';
++
++import { AzureKeyVaultSigner, type AzureKeyVaultSigningClient } from './azure-key-vault';
++
++/**
++ * The signer is tested against a stand-in for Key Vault that does exactly what Key Vault's
++ * RS256/RS384/RS512 `sign` operation does — RSASSA-PKCS1-v1_5 over a digest the caller already
++ * computed — so the round trip below proves the signatures verify, not merely that the right
++ * method was called. Keys and certificates are minted per run: nothing secret is committed.
++ */
++
++// DER DigestInfo prefixes from RFC 8017 §9.2. Key Vault prepends these to the digest it is given;
++// the fake has to as well, or its signatures would not be PKCS#1 v1.5 signatures at all.
++const DIGEST_INFO_PREFIX: Record<string, Buffer> = {
++  RS256: Buffer.from('3031300d060960864801650304020105000420', 'hex'),
++  RS384: Buffer.from('3041300d060960864801650304020205000430', 'hex'),
++  RS512: Buffer.from('3051300d060960864801650304020305000440', 'hex'),
++};
++
++type FakeVault = AzureKeyVaultSigningClient & { calls: Array<{ algorithm: string; digestLength: number }> };
++
++const fakeVault = (privateKey: KeyObject, publicKey: KeyObject): FakeVault => {
++  const calls: FakeVault['calls'] = [];
++
++  return {
++    calls,
++    getPublicKey: () => Promise.resolve(publicKey),
++    sign: (algorithm: KeyVaultSignatureAlgorithm, digest: Uint8Array) => {
++      calls.push({ algorithm, digestLength: digest.length });
++
++      const prefix = DIGEST_INFO_PREFIX[algorithm];
++
++      if (!prefix) {
++        return Promise.reject(new Error(`fake vault: unsupported algorithm ${algorithm}`));
++      }
++
++      const signature = privateEncrypt(
++        { key: privateKey, padding: constants.RSA_PKCS1_PADDING },
++        Buffer.concat([prefix, Buffer.from(digest)]),
++      );
++
++      return Promise.resolve(new Uint8Array(signature));
++    },
++  };
++};
++
++/** A self-signed certificate for `keyPair`, DER. */
++const selfSignedCertificate = async (keyPair: { privateKey: KeyObject; publicKey: KeyObject }) => {
++  pkijs.setEngine('node-webcrypto', new pkijs.CryptoEngine({ name: 'node-webcrypto', crypto: webcrypto as Crypto }));
++
++  const algorithm = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
++  const privateKey = await webcrypto.subtle.importKey(
++    'pkcs8',
++    keyPair.privateKey.export({ type: 'pkcs8', format: 'der' }),
++    algorithm,
++    false,
++    ['sign'],
++  );
++  const publicKey = await webcrypto.subtle.importKey(
++    'spki',
++    keyPair.publicKey.export({ type: 'spki', format: 'der' }),
++    algorithm,
++    true,
++    ['verify'],
++  );
++
++  const certificate = new pkijs.Certificate();
++  certificate.version = 2;
++  certificate.serialNumber = new asn1js.Integer({ value: 1 });
++
++  const commonName = new pkijs.AttributeTypeAndValue({
++    type: '2.5.4.3',
++    value: new asn1js.Utf8String({ value: 'AzureKeyVaultSigner test — not a real certificate' }),
++  });
++  certificate.issuer.typesAndValues.push(commonName);
++  certificate.subject.typesAndValues.push(commonName);
++
++  certificate.notBefore.value = new Date(Date.now() - 60_000);
++  certificate.notAfter.value = new Date(Date.now() + 86_400_000);
++
++  await certificate.subjectPublicKeyInfo.importKey(publicKey);
++  await certificate.sign(privateKey, 'SHA-256');
++
++  return new Uint8Array(certificate.toSchema().toBER(false));
++};
++
++const rsa = (modulusLength = 2048) => generateKeyPairSync('rsa', { modulusLength });
++
++describe('AzureKeyVaultSigner', () => {
++  const keyPair = rsa();
++  let certificate: Uint8Array;
++
++  beforeAll(async () => {
++    certificate = await selfSignedCertificate(keyPair);
++  });
++
++  it('produces signatures that verify against the certificate key, for every digest', async () => {
++    const vault = fakeVault(keyPair.privateKey, keyPair.publicKey);
++    const signer = await AzureKeyVaultSigner.create(vault, [certificate]);
++    const data = new TextEncoder().encode('the bytes a PDF signature covers');
++
++    for (const [digest, nodeHash, keyVaultAlgorithm, digestLength] of [
++      ['SHA-256', 'sha256', 'RS256', 32],
++      ['SHA-384', 'sha384', 'RS384', 48],
++      ['SHA-512', 'sha512', 'RS512', 64],
++    ] as const) {
++      const signature = await signer.sign(data, digest);
++
++      expect(verify(nodeHash, data, keyPair.publicKey, signature)).toBe(true);
++      expect(vault.calls.at(-1)).toEqual({ algorithm: keyVaultAlgorithm, digestLength });
++    }
++  });
++
++  it('describes itself as an RSA PKCS#1 v1.5 signer', async () => {
++    const signer = await AzureKeyVaultSigner.create(fakeVault(keyPair.privateKey, keyPair.publicKey), [certificate]);
++
++    expect(signer.keyType).toBe('RSA');
++    expect(signer.signatureAlgorithm).toBe('RSASSA-PKCS1-v1_5');
++  });
++
++  it('refuses a certificate that was issued for a different key', async () => {
++    const other = rsa();
++
++    await expect(
++      AzureKeyVaultSigner.create(fakeVault(other.privateKey, other.publicKey), [certificate]),
++    ).rejects.toThrow(/not issued for this Key Vault key/);
++  });
++
++  it('refuses to start without a certificate', async () => {
++    await expect(AzureKeyVaultSigner.create(fakeVault(keyPair.privateKey, keyPair.publicKey), [])).rejects.toThrow(
++      /no signing certificate/,
++    );
++  });
++
++  it('keeps the signing certificate out of the chain and passes intermediates through', async () => {
++    const intermediate = await selfSignedCertificate(rsa());
++
++    const alone = await AzureKeyVaultSigner.create(fakeVault(keyPair.privateKey, keyPair.publicKey), [certificate]);
++    const chained = await AzureKeyVaultSigner.create(fakeVault(keyPair.privateKey, keyPair.publicKey), [
++      certificate,
++      intermediate,
++    ]);
++
++    expect(alone.certificate).toEqual(certificate);
++    expect(alone.certificateChain).toBeUndefined();
++    expect(chained.certificateChain).toEqual([intermediate]);
++  });
++
++  it('seals a PDF whose CMS signature verifies over its byte range', async () => {
++    const signer = await AzureKeyVaultSigner.create(fakeVault(keyPair.privateKey, keyPair.publicKey), [certificate]);
++
++    const pdf = PDF.create();
++    pdf.addPage();
++
++    const { bytes } = await pdf.sign({ signer, reason: 'AzureKeyVaultSigner test', subFilter: 'ETSI.CAdES.detached' });
++
++    // Locate the signature dictionary the same way any validator does: /ByteRange names the two
++    // signed spans, and /Contents is the hex CMS between them.
++    const text = Buffer.from(bytes).toString('latin1');
++    const byteRange = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/.exec(text);
++
++    if (!byteRange) {
++      throw new Error('the signed PDF carries no /ByteRange');
++    }
++
++    const [start1, length1, start2, length2] = byteRange.slice(1).map(Number);
++    const signedBytes = Buffer.concat([
++      Buffer.from(bytes.subarray(start1, start1 + length1)),
++      Buffer.from(bytes.subarray(start2, start2 + length2)),
++    ]);
++    const hexContents = text.slice(start1 + length1 + 1, start2 - 1).replace(/0+$/, '');
++
++    const contentInfo = new pkijs.ContentInfo({ schema: asn1js.fromBER(Buffer.from(hexContents, 'hex')).result });
++    const signedData = new pkijs.SignedData({ schema: contentInfo.content });
++
++    const valid = await signedData.verify({ signer: 0, data: signedBytes, checkChain: false });
++
++    expect(valid).toBe(true);
++  });
++});
+diff --git a/packages/signing/transports/azure-key-vault.ts b/packages/signing/transports/azure-key-vault.ts
+new file mode 100644
+index 0000000..eb9c409
+--- /dev/null
++++ b/packages/signing/transports/azure-key-vault.ts
+@@ -0,0 +1,203 @@
++import { createHash, createPublicKey, type KeyObject, X509Certificate } from 'node:crypto';
++import fs from 'node:fs';
++
++import { EnvironmentCredential } from '@azure/identity';
++import {
++  CryptographyClient,
++  type JsonWebKey,
++  KeyClient,
++  type SignatureAlgorithm as KeyVaultSignatureAlgorithm,
++  parseKeyVaultKeyIdentifier,
++} from '@azure/keyvault-keys';
++import { env } from '@documenso/lib/utils/env';
++import { type DigestAlgorithm, type KeyType, parsePem, type SignatureAlgorithm, type Signer } from '@libpdf/core';
++
++/**
++ * Azure Key Vault signing transport.
++ *
++ * The private key is a non-exportable RSA-HSM key in Azure Key Vault (Premium or Managed HSM).
++ * It never leaves the vault: this transport hashes the data locally and sends only the digest
++ * to Key Vault's `sign` operation, which returns a PKCS#1 v1.5 signature (`RS256` / `RS384` /
++ * `RS512`). That is the shape `@libpdf/core`'s `Signer` contract wants for RSA.
++ *
++ * Configuration:
++ *
++ * - `NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID` — the full, VERSIONED key identifier, e.g.
++ *   `https://<vault>.vault.azure.net/keys/<name>/<version>`. A version is required: renewing a
++ *   Key Vault certificate creates a new key version, and an unversioned id would silently start
++ *   signing with a key the configured certificate chain does not describe.
++ * - `NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_CONTENTS` (base64 of a PEM file) or
++ *   `NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH` — the signing certificate first, then
++ *   its intermediates. Public material; supplying it here means the identity needs no read
++ *   access to the vault's secrets, only the key's `sign` and `get` permissions.
++ * - Credentials come from `EnvironmentCredential`: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and
++ *   either `AZURE_CLIENT_CERTIFICATE_PATH` (preferred) or `AZURE_CLIENT_SECRET`. The identity
++ *   needs the "Key Vault Crypto User" role, ideally scoped to this one key.
++ *
++ * At startup the signer checks that the certificate's public key is the vault key's public key
++ * and refuses to start if not. A certificate issued for a different key would otherwise produce
++ * signatures that every validator rejects, discovered only after documents had been sealed.
++ */
++
++const KEY_VAULT_ALGORITHMS: Record<DigestAlgorithm, KeyVaultSignatureAlgorithm> = {
++  'SHA-256': 'RS256',
++  'SHA-384': 'RS384',
++  'SHA-512': 'RS512',
++};
++
++const NODE_HASHES: Record<DigestAlgorithm, string> = {
++  'SHA-256': 'sha256',
++  'SHA-384': 'sha384',
++  'SHA-512': 'sha512',
++};
++
++/**
++ * The two Key Vault operations the signer needs. Production uses {@link createKeyVaultClient};
++ * tests substitute a local implementation so the signer can be exercised without a vault.
++ */
++export type AzureKeyVaultSigningClient = {
++  /** The vault key's public key. */
++  getPublicKey(): Promise<KeyObject>;
++  /** Signs a precomputed digest and returns the raw PKCS#1 v1.5 signature. */
++  sign(algorithm: KeyVaultSignatureAlgorithm, digest: Uint8Array): Promise<Uint8Array>;
++};
++
++export class AzureKeyVaultSigner implements Signer {
++  readonly keyType: KeyType = 'RSA';
++  readonly signatureAlgorithm: SignatureAlgorithm = 'RSASSA-PKCS1-v1_5';
++
++  private constructor(
++    private readonly client: AzureKeyVaultSigningClient,
++    readonly certificate: Uint8Array,
++    readonly certificateChain: Uint8Array[] | undefined,
++  ) {}
++
++  /**
++   * @param certificates The signing certificate first, then its intermediates, all DER.
++   */
++  static async create(client: AzureKeyVaultSigningClient, certificates: Uint8Array[]): Promise<AzureKeyVaultSigner> {
++    const [certificate, ...chain] = certificates;
++
++    if (!certificate) {
++      throw new Error('Azure Key Vault signing: no signing certificate was provided');
++    }
++
++    const certificatePublicKey = new X509Certificate(Buffer.from(certificate)).publicKey;
++
++    if (certificatePublicKey.asymmetricKeyType !== 'rsa') {
++      throw new Error(
++        `Azure Key Vault signing: the signing certificate holds a ${certificatePublicKey.asymmetricKeyType} key; only RSA is supported`,
++      );
++    }
++
++    const vaultPublicKey = await client.getPublicKey();
++
++    if (!certificatePublicKey.equals(vaultPublicKey)) {
++      throw new Error(
++        'Azure Key Vault signing: the signing certificate was not issued for this Key Vault key ' +
++          '(their public keys differ). Check NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID points at the key ' +
++          'version the certificate was issued against, and that the chain starts with the signing certificate.',
++      );
++    }
++
++    return new AzureKeyVaultSigner(client, certificate, chain.length > 0 ? chain : undefined);
++  }
++
++  async sign(data: Uint8Array, algorithm: DigestAlgorithm): Promise<Uint8Array> {
++    const keyVaultAlgorithm = KEY_VAULT_ALGORITHMS[algorithm];
++
++    if (!keyVaultAlgorithm) {
++      throw new Error(`Azure Key Vault signing: unsupported digest algorithm ${String(algorithm)}`);
++    }
++
++    const digest = createHash(NODE_HASHES[algorithm]).update(data).digest();
++
++    return await this.client.sign(keyVaultAlgorithm, new Uint8Array(digest));
++  }
++}
++
++/**
++ * The configured certificate chain, signing certificate first, as DER. Reads only local
++ * configuration, so the certificate status check can call it without touching the network.
++ */
++export const loadAzureKeyVaultCertificates = (): Uint8Array[] => {
++  const contents = env('NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_CONTENTS');
++  const filePath = env('NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH');
++
++  let pem: string | undefined;
++
++  if (contents) {
++    pem = Buffer.from(contents, 'base64').toString('utf-8');
++  } else if (filePath) {
++    pem = fs.readFileSync(filePath).toString('utf-8');
++  }
++
++  if (!pem) {
++    throw new Error(
++      'Azure Key Vault signing: set NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_CONTENTS or NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH',
++    );
++  }
++
++  const certificates = parsePem(pem)
++    .filter((block) => block.label === 'CERTIFICATE')
++    .map((block) => block.der);
++
++  if (certificates.length === 0) {
++    throw new Error('Azure Key Vault signing: the configured certificate chain contains no certificates');
++  }
++
++  return certificates;
++};
++
++const base64Url = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64url');
++
++const toPublicKeyObject = (jwk: JsonWebKey): KeyObject => {
++  if (!jwk.n || !jwk.e) {
++    throw new Error(`Azure Key Vault signing: the vault key is not an RSA key (kty ${String(jwk.kty)})`);
++  }
++
++  return createPublicKey({ key: { kty: 'RSA', n: base64Url(jwk.n), e: base64Url(jwk.e) }, format: 'jwk' });
++};
++
++/** A {@link AzureKeyVaultSigningClient} backed by the Azure SDK. */
++export const createKeyVaultClient = (keyId: string): AzureKeyVaultSigningClient => {
++  const { vaultUrl, name, version } = parseKeyVaultKeyIdentifier(keyId);
++
++  if (!version) {
++    throw new Error(
++      'Azure Key Vault signing: NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID must include the key version ' +
++        '(https://<vault>.vault.azure.net/keys/<name>/<version>)',
++    );
++  }
++
++  const credential = new EnvironmentCredential();
++  const keyClient = new KeyClient(vaultUrl, credential);
++  const cryptographyClient = new CryptographyClient(keyId, credential);
++
++  return {
++    getPublicKey: async () => {
++      const key = await keyClient.getKey(name, { version });
++
++      if (!key.key) {
++        throw new Error(`Azure Key Vault signing: Key Vault returned no key material for ${keyId}`);
++      }
++
++      return toPublicKeyObject(key.key);
++    },
++    sign: async (algorithm, digest) => {
++      const { result } = await cryptographyClient.sign(algorithm, digest);
++
++      return result;
++    },
++  };
++};
++
++export const createAzureKeyVaultSigner = async () => {
++  const keyId = env('NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID');
++
++  if (!keyId) {
++    throw new Error('Azure Key Vault signing: NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID is not set');
++  }
++
++  return await AzureKeyVaultSigner.create(createKeyVaultClient(keyId), loadAzureKeyVaultCertificates());
++};
+diff --git a/packages/tsconfig/process-env.d.ts b/packages/tsconfig/process-env.d.ts
+index d02df2b..7cef89c 100644
+--- a/packages/tsconfig/process-env.d.ts
++++ b/packages/tsconfig/process-env.d.ts
+@@ -37,7 +37,7 @@ declare namespace NodeJS {
+     NEXT_PRIVATE_UPLOAD_AZURE_CONTAINER?: string;
+     NEXT_PRIVATE_UPLOAD_AZURE_ENDPOINT?: string;
+ 
+-    NEXT_PRIVATE_SIGNING_TRANSPORT?: 'local' | 'http' | 'gcloud-hsm' | 'csc';
++    NEXT_PRIVATE_SIGNING_TRANSPORT?: 'local' | 'http' | 'gcloud-hsm' | 'azure-kv' | 'csc';
+     /**
+      * Derived from `NEXT_PRIVATE_SIGNING_TRANSPORT` in `createPublicEnv()`; do
+      * not set manually. Lets the client detect CSC mode for authoring UI gating.
+@@ -54,6 +54,9 @@ declare namespace NodeJS {
+     NEXT_PRIVATE_SIGNING_GCLOUD_HSM_CERT_CHAIN_FILE_PATH?: string;
+     NEXT_PRIVATE_SIGNING_GCLOUD_HSM_CERT_CHAIN_CONTENTS?: string;
+     NEXT_PRIVATE_SIGNING_GCLOUD_HSM_SECRET_MANAGER_CERT_PATH?: string;
++    NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID?: string;
++    NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_CONTENTS?: string;
++    NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH?: string;
+     NEXT_PRIVATE_SIGNING_CSC_PROVIDER_BASE_URL?: string;
+     NEXT_PRIVATE_SIGNING_CSC_OAUTH_CLIENT_ID?: string;
+     NEXT_PRIVATE_SIGNING_CSC_OAUTH_CLIENT_SECRET?: string;

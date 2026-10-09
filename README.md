@@ -8,8 +8,8 @@ Two things live in this repo:
    before this work the server had **no backups of any kind**, so the backup
    set covers every stack on the box.
 
-It is also where **our fork of Documenso** will live when we need one. Issue #2
-(the `AzureKeyVaultSigner`) is the first thing that will require it — Documenso
+It is also where **our fork of Documenso** lives (`fork/`, see its README).
+Issue #2, the `AzureKeyVaultSigner`, is the first thing in it — Documenso
 upstream has no signing transport that can use a non-exportable RSA-HSM key in
 Azure Key Vault, so that has to be our code in our image.
 
@@ -47,6 +47,14 @@ deploy/                 the runnable stack + the cutover runbook
   docker-compose.yml    documenso + postgres, pinned, loopback-bound
   .env.example          every variable, placeholders only
   README.md             deployment, cutover, rollback
+fork/                   our Documenso image: upstream at a pinned release + patches
+  pins.env              upstream tag and commit, and the image tag we build
+  patches/              our changes (0001: the Azure Key Vault signing transport)
+  build.sh              verify, patch, and docker-build on the target host
+  README.md             the patches, building, and the Key Vault cutover
+deploy/docker-compose.azure-kv.yml
+                        overlay that switches the stack to Key Vault signing
+LICENSE, CHANGES.md     upstream's AGPL-3.0, and our record of what we changed
 backup/                 whole-host backups for doodlessd
   README.md             design, retention, and the restore rehearsal
   install-restic.sh     pinned restic install (not the stale apt package)

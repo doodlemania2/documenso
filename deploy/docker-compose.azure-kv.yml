@@ -1,0 +1,52 @@
+# Overlay: switch Documenso from the self-signed .p12 to the SSL.com AATL
+# certificate held in Azure Key Vault (issue #2). Layered over the base file
+# rather than edited into it, so the cutover and the rollback are each one
+# command and the base file keeps describing a stack that works on its own:
+#
+#   cutover:   docker compose -f docker-compose.yml -f docker-compose.azure-kv.yml up -d
+#   rollback:  docker compose -f docker-compose.yml up -d
+#
+# Prerequisites are in fork/README.md ("Switching doodlessd to Key Vault
+# signing"): the image built by fork/build.sh, the signer identity (Paperclip
+# TDP-182), and two files in ./secrets/.
+services:
+  documenso:
+    # Our image: upstream v2.18.0 + fork/patches/, built ON THIS HOST by
+    # fork/build.sh. It is never pulled, so `pull_policy: never` makes a missing
+    # local image a hard error instead of a pull of whatever Docker Hub might
+    # have under the same name.
+    #
+    # A locally built image has no registry digest to pin, so the pin is its
+    # image ID. Before cutover, confirm the image on the host is the one that
+    # was verified:
+    #   docker image inspect --format '{{.Id}}' tdp/documenso:v2.18.0-tdp.1
+    # Recorded ID: sha256:6db6d8ce4503c26cf300b7fe7360495f84e2fdf58cc2d6f8624bbec0ac5ccc11
+    #   (built 2026-10-10 on doodlessd from pins.env + patch 0001)
+    image: tdp/documenso:v2.18.0-tdp.1
+    pull_policy: never
+    environment:
+      NEXT_PRIVATE_SIGNING_TRANSPORT: azure-kv
+      # VERSIONED on purpose. Renewing the Key Vault certificate creates a new
+      # key version; an unversioned id would sign with the new key while still
+      # embedding the old certificate, and every signature would fail.
+      # Rotation = update this line and signing-chain.pem together.
+      NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID: https://tdpdf-sign.vault.azure.net/keys/documenso-signing/bceef820491644268b67454219e75930
+      # Leaf (CN=The Doodle Project LLC, SHA-1 D9E675DF42B0E379ACEBBBA4AF148EF54DF1FCCC)
+      # then the SSL.com Client Certificate Intermediate CA RSA R2. Public
+      # material, but kept with the secrets so the cert and key travel together.
+      NEXT_PRIVATE_SIGNING_AZURE_KV_CERT_CHAIN_FILE_PATH: /opt/documenso/signing-chain.pem
+      # The signer identity's certificate + private key (PEM). AZURE_TENANT_ID
+      # and AZURE_CLIENT_ID come from .env; see .env.example.
+      AZURE_CLIENT_CERTIFICATE_PATH: /opt/documenso/azure-signer.pem
+      # RFC 3161 timestamps make each signature outlive the certificate (it
+      # expires 2029-09-27) and are what turn on LTV / archival timestamps in
+      # Documenso. SSL.com's own TSA, the issuer of the certificate.
+      NEXT_PRIVATE_SIGNING_TIMESTAMP_AUTHORITY: http://ts.ssl.com
+    volumes:
+      # Same ownership rule as cert.p12: the container runs as uid 1001.
+      #   chown 1001 secrets/signing-chain.pem secrets/azure-signer.pem
+      #   chmod 444 secrets/signing-chain.pem && chmod 400 secrets/azure-signer.pem
+      # The .p12 mount from the base file stays in place, unused, so a rollback
+      # needs no file shuffling.
+      - ./secrets/signing-chain.pem:/opt/documenso/signing-chain.pem:ro
+      - ./secrets/azure-signer.pem:/opt/documenso/azure-signer.pem:ro

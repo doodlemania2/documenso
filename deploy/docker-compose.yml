@@ -125,6 +125,11 @@ services:
       # Cloudflare and nginx-proxy-manager and fails the moment DNS wobbles.
       NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://127.0.0.1:3000
       PORT: "3000"
+      # Upstream's start.sh runs `node build/server/main.js` with NODE_ENV unset
+      # (only `npm start` sets it), which leaves the server in development mode:
+      # every API error then returns the server's stack trace, file paths and all,
+      # to whoever caused it. Production mode is what upstream intends.
+      NODE_ENV: production
     ports:
       # LOOPBACK ONLY. nginx-proxy-manager runs in host network mode on this
       # box, so it reaches the app on 127.0.0.1 — the same shape docs-stack and

@@ -1,77 +1,77 @@
-# documenso
+# TDPdf Signing — self-hosted Documenso
 
-Two things live in this repo:
+This repository runs **[sign.tdpdf.com](https://sign.tdpdf.com)**, the document-signing service
+behind [TDPdf](https://github.com/doodlemania2/TDPdf). It is a self-hosted
+[Documenso](https://github.com/documenso/documenso) instance with one addition: it can seal
+documents with a **publicly trusted signing certificate whose private key never leaves a hardware
+security module** in Azure Key Vault. Signed PDFs validate in Adobe Acrobat and every other
+standards-compliant reader, and carry RFC 3161 timestamps so they keep validating after the
+certificate expires.
 
-1. **`deploy/`** — the self-hosted [Documenso](https://github.com/documenso/documenso)
-   stack that runs on the server `doodlessd` and serves `sign.tdpdf.com`.
-2. **`backup/`** — whole-host backups for `doodlessd`. Not Documenso-only:
-   before this work the server had **no backups of any kind**, so the backup
-   set covers every stack on the box.
+Everything needed to reproduce it is here: the patch we add to Documenso, the script that builds
+the image, the Docker Compose stack, and the backups. You are welcome to read it, reuse it, or run
+your own copy.
 
-It is also where **our fork of Documenso** lives (`fork/`, see its README).
-Issue #2, the `AzureKeyVaultSigner`, is the first thing in it — Documenso
-upstream has no signing transport that can use a non-exportable RSA-HSM key in
-Azure Key Vault, so that has to be our code in our image.
+## What's in here
 
-## Licensing — read this before pushing a fork here
+| Path | What it is |
+|---|---|
+| [`fork/`](fork/) | Our Documenso build: upstream at a pinned release, plus a small patch series, built with upstream's own Dockerfile. Start with [`fork/README.md`](fork/README.md). |
+| [`fork/patches/`](fork/patches/) | The changes we make to Documenso. Today that is one patch: an **Azure Key Vault signing transport** (`azure-kv`). |
+| [`deploy/`](deploy/) | The Docker Compose stack (Documenso + Postgres), with a [deployment runbook](deploy/README.md). `docker-compose.azure-kv.yml` is the overlay that switches signing to Key Vault. |
+| [`backup/`](backup/) | Whole-host backups with restic, including a restore rehearsal that proves the backups actually restore. See [`backup/README.md`](backup/README.md). |
+| [`LICENSE`](LICENSE), [`CHANGES.md`](CHANGES.md) | Documenso's AGPL-3.0 licence, unmodified, and the record of what we changed. |
 
-Documenso is **AGPL-3.0**. That is not the MIT-shaped obligation most of our
-dependencies carry, and the difference matters specifically because we run it
-as a network service:
+## Signing with Azure Key Vault
 
-- **Network use is distribution.** AGPL §13: if you modify the program and let
-  users interact with it *over a network*, you must offer those users the
-  Corresponding Source of **your modified version**. Standing up
-  `sign.tdpdf.com` on a patched build triggers this. Nobody has to ask first.
-- **The offer has to be real and prominent.** In practice: keep the "Source"
-  link Documenso ships in its own UI working and pointed at our fork, or add
-  one. A private repo is fine *until* we serve a modified build publicly; at
-  that point the modified source must be obtainable by the people using it.
-- **Attribution stays intact.** Do not strip Documenso copyright headers,
-  `LICENSE`, or upstream branding from source files. Rebranding the *product
-  surface* is a separate question from erasing *authorship*, and only the
-  former is ours to do.
-- **Our modifications inherit AGPL-3.0.** Anything we add to the fork —
-  `AzureKeyVaultSigner` included — ships under AGPL-3.0, not under whatever
-  licence TDPdf uses. Keep TDPdf (GPLv3) and this fork as separate codebases
-  talking over the HTTP API; do not link our signer into TDPdf's process.
+Documenso ships signing transports for a local `.p12` file, Google Cloud HSM, and CSC providers.
+None of them can use a key held in Azure Key Vault — and a publicly trusted document-signing
+certificate (for example one in Adobe's AATL) is only issued for a key generated and kept in an
+HSM, so the `.p12` route is closed for exactly the certificates people want.
 
-If the fork is added, put upstream's `LICENSE` at the repo root unmodified and
-record our changes in a `NOTICE`-style changelog so the source offer is easy to
-satisfy.
+The `azure-kv` transport fills that gap. Documenso hashes the document locally and sends only the
+digest to Key Vault's `sign` operation; the key itself never leaves the vault. It checks at startup
+that the configured certificate really belongs to the vault key, and it requires a versioned key
+id so a certificate renewal can never silently change the signing key. Configuration and setup are
+documented in the patch itself (`apps/docs/.../signing-certificate/azure-key-vault.mdx`) and
+summarised in [`fork/README.md`](fork/README.md).
 
-## Layout
+The patch is written so it could be offered to Documenso upstream as-is. If you run Documenso and
+want Key Vault signing, you can apply it to v2.18.0 directly:
 
-```
-deploy/                 the runnable stack + the cutover runbook
-  docker-compose.yml    documenso + postgres, pinned, loopback-bound
-  .env.example          every variable, placeholders only
-  README.md             deployment, cutover, rollback
-fork/                   our Documenso image: upstream at a pinned release + patches
-  pins.env              upstream tag and commit, and the image tag we build
-  patches/              our changes (0001: the Azure Key Vault signing transport)
-  build.sh              verify, patch, and docker-build on the target host
-  README.md             the patches, building, and the Key Vault cutover
-deploy/docker-compose.azure-kv.yml
-                        overlay that switches the stack to Key Vault signing
-LICENSE, CHANGES.md     upstream's AGPL-3.0, and our record of what we changed
-backup/                 whole-host backups for doodlessd
-  README.md             design, retention, and the restore rehearsal
-  install-restic.sh     pinned restic install (not the stale apt package)
-  doodlessd-backup.sh   the backup job
-  doodlessd-prune.sh    retention + integrity check
-  restore-rehearsal.sh  proves the backup restores, on a throwaway copy
-  backup.env.example    destination + credentials, placeholders only
-  systemd/              units and timers
+```bash
+git clone --depth 1 --branch v2.18.0 https://github.com/documenso/documenso.git
+cd documenso && git apply /path/to/fork/patches/0001-signing-azure-key-vault-transport.patch
 ```
 
-## Ground rules for this repo
+## Source code offer (AGPL-3.0)
 
-- **No secrets, ever.** `.env`, `backup.env`, `*.p12` are gitignored. The
-  committed `.example` files carry placeholders and a note on how to generate
-  the real value.
-- **Everything pinned.** Images carry both a tag and a digest; `latest` is
-  never used. Auto-update is deliberately off — see the watchtower note in
-  `deploy/docker-compose.yml`.
-- **Nothing here deploys itself.** These files are copied to the server by
-  hand, on purpose. The cutover is a human decision with a rollback.
+Documenso is licensed under the GNU Affero General Public License v3.0, and so is our modified
+version. If you use sign.tdpdf.com, the complete corresponding source for the version it runs is:
+
+- Documenso at the upstream commit pinned in [`fork/pins.env`](fork/pins.env), plus
+- the patches in [`fork/patches/`](fork/patches/), applied in order.
+
+[`fork/build.sh`](fork/build.sh) turns those into the exact image we run. Documenso's copyright
+notices and licence are kept intact; [`CHANGES.md`](CHANGES.md) lists our modifications.
+
+TDPdf itself (GPLv3) talks to this service only over Documenso's HTTP API; no Documenso code is
+linked into it.
+
+## How we run it
+
+A few principles shape everything here, in case you adapt it for your own deployment:
+
+- **No secrets in the repository.** Real `.env` files, certificates and keys are gitignored. Every
+  committed `.example` file uses placeholders and explains how to produce the real value.
+- **Everything is pinned.** Images are referenced by tag *and* digest (or, for the image we build
+  ourselves, by recorded image ID); the upstream source is pinned to a commit and every patch to a
+  checksum. Automatic updates are deliberately off for a signing service.
+- **Changes are deliberate and reversible.** Nothing deploys itself. The switch to Key Vault
+  signing is an overlay file, so moving to it — and rolling back — is one command each.
+
+## Contributing
+
+Issues and pull requests are welcome, especially around the Key Vault transport. For anything
+about Documenso itself, the [upstream project](https://github.com/documenso/documenso) is the right
+place.

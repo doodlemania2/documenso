@@ -214,9 +214,10 @@ is on the public internet unprotected.
 
 ### 6. Bootstrap the admin account
 
-`NEXT_PUBLIC_DISABLE_SIGNUP=true` in `.env.example` locks the instance down,
-which means the **first** account has to be created before that takes effect.
-Either:
+sign.tdpdf.com runs with signup **open** (`NEXT_PUBLIC_DISABLE_SIGNUP=false`,
+since 2026-10-15), because TDPdf users sign up there to use Electronic Signature.
+The steps below are for an instance you want closed: with signup disabled, the
+**first** account has to be created before that takes effect. Either:
 
 - temporarily set `NEXT_PUBLIC_DISABLE_SIGNUP=false`, `docker compose up -d`,
   sign up through the loopback port via an SSH tunnel

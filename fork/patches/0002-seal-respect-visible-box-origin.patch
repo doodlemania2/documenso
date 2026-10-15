@@ -1,0 +1,583 @@
+diff --git a/packages/lib/jobs/definitions/internal/seal-document.handler.ts b/packages/lib/jobs/definitions/internal/seal-document.handler.ts
+index 49758b3..efbd2e4 100644
+--- a/packages/lib/jobs/definitions/internal/seal-document.handler.ts
++++ b/packages/lib/jobs/definitions/internal/seal-document.handler.ts
+@@ -20,6 +20,7 @@ import { getCertificatePdf } from '../../../server-only/htmltopdf/get-certificat
+ import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf-v1';
+ import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
+ import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
++import { drawPageOverlay, getPageOverlayPlacement } from '../../../server-only/pdf/page-overlay-placement';
+ import { getTeamSettings } from '../../../server-only/team/get-team-settings';
+ import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
+ import { DOCUMENT_AUDIT_LOG_TYPE, type TDocumentAuditLog } from '../../../types/document-audit-logs';
+@@ -439,46 +440,18 @@ const decorateAndSignPdf = async ({
+         throw new Error(`Page ${pageNumber} does not exist`);
+       }
+ 
+-      const pageWidth = page.width;
+-      const pageHeight = page.height;
++      // Size and position the overlay to the page's visible box, in the
++      // orientation that react-pdf renders on the frontend.
++      const placement = getPageOverlayPlacement(pdfDoc, page);
+ 
+       const overlayBytes = await insertFieldInPDFV2({
+-        pageWidth,
+-        pageHeight,
++        pageWidth: placement.width,
++        pageHeight: placement.height,
+         fields,
+       });
+ 
+-      const overlayPdf = await PDF.load(overlayBytes);
+-
+-      const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0);
+-
+-      // Rotate the page to the orientation that the react-pdf renders on the frontend.
+-      let translateX = 0;
+-      let translateY = 0;
+-
+-      switch (page.rotation) {
+-        case 90:
+-          translateX = pageHeight;
+-          translateY = 0;
+-          break;
+-        case 180:
+-          translateX = pageWidth;
+-          translateY = pageHeight;
+-          break;
+-        case 270:
+-          translateX = 0;
+-          translateY = pageWidth;
+-          break;
+-      }
+-
+       // Draw the overlay on the page
+-      page.drawPage(embeddedPage, {
+-        x: translateX,
+-        y: translateY,
+-        rotate: {
+-          angle: page.rotation,
+-        },
+-      });
++      await drawPageOverlay(pdfDoc, page, await PDF.load(overlayBytes), placement);
+     }
+   }
+ 
+diff --git a/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts b/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
+index ad44652..9a4264d 100644
+--- a/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
++++ b/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
+@@ -3,6 +3,7 @@ import { PDF } from '@libpdf/core';
+ import { groupBy } from 'remeda';
+ 
+ import { insertFieldInPDFV2 } from './insert-field-in-pdf-v2';
++import { drawPageOverlay, getPageOverlayPlacement } from './page-overlay-placement';
+ 
+ type GeneratePartialSignedPdfOptions = {
+   pdfData: Uint8Array;
+@@ -32,42 +33,15 @@ export const generatePartialSignedPdf = async ({ pdfData, fields }: GeneratePart
+       throw new Error(`Page ${pageNumber} does not exist`);
+     }
+ 
+-    const pageWidth = page.width;
+-    const pageHeight = page.height;
++    const placement = getPageOverlayPlacement(pdfDoc, page);
++
+     const overlayBytes = await insertFieldInPDFV2({
+-      pageWidth,
+-      pageHeight,
++      pageWidth: placement.width,
++      pageHeight: placement.height,
+       fields: pageFields,
+     });
+ 
+-    const overlayPdf = await PDF.load(overlayBytes);
+-    const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0);
+-
+-    let translateX = 0;
+-    let translateY = 0;
+-
+-    switch (page.rotation) {
+-      case 90:
+-        translateX = pageHeight;
+-        translateY = 0;
+-        break;
+-      case 180:
+-        translateX = pageWidth;
+-        translateY = pageHeight;
+-        break;
+-      case 270:
+-        translateX = 0;
+-        translateY = pageWidth;
+-        break;
+-    }
+-
+-    page.drawPage(embeddedPage, {
+-      x: translateX,
+-      y: translateY,
+-      rotate: {
+-        angle: page.rotation,
+-      },
+-    });
++    await drawPageOverlay(pdfDoc, page, await PDF.load(overlayBytes), placement);
+   }
+ 
+   pdfDoc.flattenAll();
+diff --git a/packages/lib/server-only/pdf/page-overlay-placement.test.ts b/packages/lib/server-only/pdf/page-overlay-placement.test.ts
+new file mode 100644
+index 0000000..c7d13dd
+--- /dev/null
++++ b/packages/lib/server-only/pdf/page-overlay-placement.test.ts
+@@ -0,0 +1,257 @@
++import { PDF, type PDFPage, PdfArray, PdfDict, PdfNumber, PdfRef, PdfStream, rgb } from '@libpdf/core';
++import { describe, expect, it } from 'vitest';
++
++import { drawPageOverlay, getPageOverlayPlacement } from './page-overlay-placement';
++
++type Rect = [number, number, number, number];
++type Matrix = [number, number, number, number, number, number];
++
++type PageSpec = {
++  mediaBox: Rect;
++  cropBox?: Rect;
++  rotate?: number;
++  /** Put /MediaBox and /Rotate on the parent /Pages node instead of the page. */
++  inherit?: boolean;
++  /** The region pdf.js displays (`Page.view`), written out by hand. */
++  expectedView: Rect;
++};
++
++// A field as stored by Documenso: percentages of the displayed page, from its top-left corner.
++const FIELD = { positionX: 10, positionY: 20, width: 25, height: 5 };
++
++const rect = (values: Rect) => PdfArray.of(...values.map((value) => PdfNumber.of(value)));
++
++const buildSourcePdf = async (spec: PageSpec) => {
++  const pdf = PDF.create();
++  const page = pdf.addPage();
++  const target = spec.inherit ? page.dict.get('Parent', pdf.getObject.bind(pdf)) : page.dict;
++
++  if (!(target instanceof PdfDict)) {
++    throw new Error('Page has no parent /Pages node');
++  }
++
++  if (spec.inherit) {
++    page.dict.delete('MediaBox');
++  }
++
++  target.set('MediaBox', rect(spec.mediaBox));
++
++  if (spec.rotate !== undefined) {
++    target.set('Rotate', PdfNumber.of(spec.rotate));
++  }
++
++  if (spec.cropBox) {
++    page.dict.set('CropBox', rect(spec.cropBox));
++  }
++
++  return PDF.load(await pdf.save());
++};
++
++const firstPage = (pdf: PDF) => {
++  const page = pdf.getPage(0);
++
++  if (!page) {
++    throw new Error('PDF has no pages');
++  }
++
++  return page;
++};
++
++/**
++ * Seal-time overlay, as the seal handler does it: an upright overlay of the
++ * displayed page size with the field drawn where Konva would put it, drawn
++ * onto the page with `drawPageOverlay`.
++ */
++const sealOverlay = async (source: PDF, page: PDFPage) => {
++  const placement = getPageOverlayPlacement(source, page);
++
++  const overlay = PDF.create();
++  const overlayPage = overlay.addPage({ width: placement.width, height: placement.height });
++
++  overlayPage.drawRectangle({
++    x: (FIELD.positionX / 100) * placement.width,
++    y: placement.height - ((FIELD.positionY + FIELD.height) / 100) * placement.height,
++    width: (FIELD.width / 100) * placement.width,
++    height: (FIELD.height / 100) * placement.height,
++    color: rgb(0, 0, 0),
++  });
++
++  await drawPageOverlay(source, page, await PDF.load(await overlay.save()), placement);
++
++  return placement;
++};
++
++const multiply = (m: Matrix, n: Matrix): Matrix => [
++  m[0] * n[0] + m[1] * n[2],
++  m[0] * n[1] + m[1] * n[3],
++  m[2] * n[0] + m[3] * n[2],
++  m[2] * n[1] + m[3] * n[3],
++  m[4] * n[0] + m[5] * n[2] + n[4],
++  m[4] * n[1] + m[5] * n[3] + n[5],
++];
++
++const apply = (m: Matrix, x: number, y: number): [number, number] => [
++  m[0] * x + m[2] * y + m[4],
++  m[1] * x + m[3] * y + m[5],
++];
++
++const NUMBER = String.raw`[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?`;
++const CM = new RegExp(
++  `(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s+cm`,
++  'g',
++);
++
++/**
++ * The CTM the overlay XObject is painted with, read back from the saved
++ * page's content stream (the `cm` operators of the last `q ... Do Q` block).
++ */
++const getOverlayCtm = async (source: PDF): Promise<Matrix> => {
++  const pdf = await PDF.load(await source.save());
++  const resolve = pdf.getObject.bind(pdf);
++  const contents = firstPage(pdf).dict.get('Contents', resolve);
++
++  const streams =
++    contents instanceof PdfArray
++      ? contents.toArray().map((item) => (item instanceof PdfRef ? resolve(item) : item))
++      : [contents];
++
++  const text = streams
++    .filter((stream): stream is PdfStream => stream instanceof PdfStream)
++    .map((stream) => new TextDecoder().decode(stream.getDecodedData()))
++    .join('\n');
++
++  const paint = text.lastIndexOf(' Do');
++  const block = text.slice(text.lastIndexOf('q', paint), paint);
++
++  // Each `cm` pre-multiplies the CTM, so the last one written applies first.
++  return [...block.matchAll(CM)]
++    .map((match): Matrix => {
++      const [a, b, c, d, e, f] = match.slice(1, 7).map(Number);
++
++      return [a, b, c, d, e, f];
++    })
++    .reduceRight<Matrix>((ctm, m) => multiply(ctm, m), [1, 0, 0, 1, 0, 0]);
++};
++
++/**
++ * User space to displayed (top-left origin) coordinates, ported from pdf.js
++ * `PageViewport` at scale 1 — the transform react-pdf renders the signer's
++ * page with.
++ */
++const viewportTransform = (view: Rect, rotation: number): { transform: Matrix; width: number; height: number } => {
++  const centerX = (view[2] + view[0]) / 2;
++  const centerY = (view[3] + view[1]) / 2;
++
++  const [a, b, c, d] = (
++    {
++      0: [1, 0, 0, -1],
++      90: [0, 1, 1, 0],
++      180: [-1, 0, 0, 1],
++      270: [0, -1, -1, 0],
++    } as Record<number, [number, number, number, number]>
++  )[((rotation % 360) + 360) % 360];
++
++  const sideways = a === 0;
++  const offsetX = Math.abs(sideways ? centerY - view[1] : centerX - view[0]);
++  const offsetY = Math.abs(sideways ? centerX - view[0] : centerY - view[1]);
++
++  return {
++    transform: [a, b, c, d, offsetX - a * centerX - c * centerY, offsetY - b * centerX - d * centerY],
++    width: sideways ? view[3] - view[1] : view[2] - view[0],
++    height: sideways ? view[2] - view[0] : view[3] - view[1],
++  };
++};
++
++/** Bounding box of a rectangle's corners after `m`. */
++const mapRect = (m: Matrix, x1: number, y1: number, x2: number, y2: number) => {
++  const points = [apply(m, x1, y1), apply(m, x2, y1), apply(m, x1, y2), apply(m, x2, y2)];
++  const xs = points.map(([x]) => x);
++  const ys = points.map(([, y]) => y);
++
++  return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
++};
++
++const expectRectClose = (actual: ReturnType<typeof mapRect>, expected: ReturnType<typeof mapRect>) => {
++  expect(actual.left).toBeCloseTo(expected.left, 6);
++  expect(actual.top).toBeCloseTo(expected.top, 6);
++  expect(actual.right).toBeCloseTo(expected.right, 6);
++  expect(actual.bottom).toBeCloseTo(expected.bottom, 6);
++};
++
++const LETTER: Rect = [0, 0, 612, 792];
++const CROP: Rect = [36, 72, 576, 720];
++
++const cases: Array<[string, PageSpec]> = [
++  ['plain Letter page', { mediaBox: LETTER, expectedView: LETTER }],
++  ['offset CropBox', { mediaBox: LETTER, cropBox: CROP, expectedView: CROP }],
++  ['offset CropBox, /Rotate 90', { mediaBox: LETTER, cropBox: CROP, rotate: 90, expectedView: CROP }],
++  ['offset CropBox, /Rotate 180', { mediaBox: LETTER, cropBox: CROP, rotate: 180, expectedView: CROP }],
++  ['offset CropBox, /Rotate 270', { mediaBox: LETTER, cropBox: CROP, rotate: 270, expectedView: CROP }],
++  ['offset CropBox, /Rotate -90', { mediaBox: LETTER, cropBox: CROP, rotate: -90, expectedView: CROP }],
++  ['offset MediaBox', { mediaBox: [100, 200, 712, 992], expectedView: [100, 200, 712, 992] }],
++  [
++    'CropBox overhanging the MediaBox',
++    { mediaBox: LETTER, cropBox: [-50, 100, 400, 900], expectedView: [0, 100, 400, 792] },
++  ],
++  [
++    'MediaBox and /Rotate 90 inherited from /Pages',
++    { mediaBox: [0, 0, 595, 842], rotate: 90, inherit: true, expectedView: [0, 0, 595, 842] },
++  ],
++];
++
++describe('getPageOverlayPlacement', () => {
++  it('sizes the overlay to the visible box, swapped for sideways pages', async () => {
++    const upright = await buildSourcePdf({ mediaBox: LETTER, cropBox: CROP, expectedView: CROP });
++    const sideways = await buildSourcePdf({ mediaBox: LETTER, cropBox: CROP, rotate: 90, expectedView: CROP });
++
++    expect(getPageOverlayPlacement(upright, firstPage(upright))).toEqual({
++      width: 540,
++      height: 648,
++      x: 36,
++      y: 72,
++      rotation: 0,
++    });
++
++    expect(getPageOverlayPlacement(sideways, firstPage(sideways))).toEqual({
++      width: 648,
++      height: 540,
++      x: 576,
++      y: 72,
++      rotation: 90,
++    });
++  });
++});
++
++describe('drawPageOverlay', () => {
++  it.each(cases)('%s: the field lands where pdf.js displayed it', async (_name, spec) => {
++    const source = await buildSourcePdf(spec);
++    const page = firstPage(source);
++
++    const placement = await sealOverlay(source, page);
++    const ctm = await getOverlayCtm(source);
++
++    const viewport = viewportTransform(spec.expectedView, spec.rotate ?? 0);
++    const overlayToDisplay = multiply(ctm, viewport.transform);
++
++    // The overlay covers exactly the displayed page...
++    expectRectClose(mapRect(overlayToDisplay, 0, 0, placement.width, placement.height), {
++      left: 0,
++      top: 0,
++      right: viewport.width,
++      bottom: viewport.height,
++    });
++
++    // ...so the field sits at the same percentages the signer saw.
++    const fieldLeft = (FIELD.positionX / 100) * placement.width;
++    const fieldTop = placement.height - (FIELD.positionY / 100) * placement.height;
++    const fieldRight = fieldLeft + (FIELD.width / 100) * placement.width;
++    const fieldBottom = fieldTop - (FIELD.height / 100) * placement.height;
++
++    expectRectClose(mapRect(overlayToDisplay, fieldLeft, fieldBottom, fieldRight, fieldTop), {
++      left: (FIELD.positionX / 100) * viewport.width,
++      top: (FIELD.positionY / 100) * viewport.height,
++      right: ((FIELD.positionX + FIELD.width) / 100) * viewport.width,
++      bottom: ((FIELD.positionY + FIELD.height) / 100) * viewport.height,
++    });
++  });
++});
+diff --git a/packages/lib/server-only/pdf/page-overlay-placement.ts b/packages/lib/server-only/pdf/page-overlay-placement.ts
+new file mode 100644
+index 0000000..e7e33a2
+--- /dev/null
++++ b/packages/lib/server-only/pdf/page-overlay-placement.ts
+@@ -0,0 +1,189 @@
++import type { PDF, PDFPage } from '@libpdf/core';
++import { PdfArray, PdfDict, PdfNumber } from '@libpdf/core';
++
++/**
++ * A rectangle in a page's default (unrotated) user space.
++ */
++export type PageBox = {
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++};
++
++export type PageOverlayPlacement = {
++  /** Overlay width, as the page is displayed (after `/Rotate`). */
++  width: number;
++  /** Overlay height, as the page is displayed (after `/Rotate`). */
++  height: number;
++  /** Where `drawPage` must put the overlay's origin, in user space. */
++  x: number;
++  y: number;
++  /** The page's `/Rotate`, normalised to 0, 90, 180 or 270. */
++  rotation: 0 | 90 | 180 | 270;
++};
++
++const LETTER_MEDIA_BOX: PageBox = { x: 0, y: 0, width: 612, height: 792 };
++
++// Guards against a malformed `/Parent` cycle.
++const MAX_PAGE_TREE_DEPTH = 64;
++
++/**
++ * Look up an inheritable page attribute (`MediaBox`, `CropBox`, `Rotate`),
++ * walking up the page tree as ISO 32000-1 7.7.3.4 requires.
++ */
++const getInheritableAttribute = (pdf: PDF, page: PDFPage, key: string) => {
++  const resolve = pdf.getObject.bind(pdf);
++
++  let node: PdfDict | undefined = page.dict;
++
++  for (let depth = 0; node && depth < MAX_PAGE_TREE_DEPTH; depth++) {
++    const value = node.get(key, resolve);
++
++    if (value !== undefined) {
++      return value;
++    }
++
++    const parent = node.get('Parent', resolve);
++    node = parent instanceof PdfDict ? parent : undefined;
++  }
++
++  return undefined;
++};
++
++/**
++ * Read a page box as a normalised rectangle, or `null` when it is missing or
++ * degenerate.
++ *
++ * Read directly rather than through `PDFPage.getMediaBox()`/`getCropBox()`:
++ * as of @libpdf/core 0.4.2 those return the upper-right corner as `width` and
++ * `height` and do not inherit from the page tree.
++ */
++const getPageBox = (pdf: PDF, page: PDFPage, key: 'MediaBox' | 'CropBox'): PageBox | null => {
++  const value = getInheritableAttribute(pdf, page, key);
++
++  if (!(value instanceof PdfArray) || value.length < 4) {
++    return null;
++  }
++
++  const resolve = pdf.getObject.bind(pdf);
++  const coords: number[] = [];
++
++  for (let i = 0; i < 4; i++) {
++    const coord = value.at(i, resolve);
++
++    if (!(coord instanceof PdfNumber)) {
++      return null;
++    }
++
++    coords.push(coord.value);
++  }
++
++  const [x1, y1, x2, y2] = coords;
++
++  const x = Math.min(x1, x2);
++  const y = Math.min(y1, y2);
++  const width = Math.abs(x2 - x1);
++  const height = Math.abs(y2 - y1);
++
++  if (width <= 0 || height <= 0) {
++    return null;
++  }
++
++  return { x, y, width, height };
++};
++
++/**
++ * The region of the page a viewer displays, in unrotated user space.
++ *
++ * Mirrors pdf.js's `Page.view` (which react-pdf renders, and which fields are
++ * positioned against): the CropBox clipped to the MediaBox, falling back to
++ * the MediaBox, and to US Letter when there is no usable MediaBox.
++ */
++export const getPageVisibleBox = (pdf: PDF, page: PDFPage): PageBox => {
++  const mediaBox = getPageBox(pdf, page, 'MediaBox') ?? LETTER_MEDIA_BOX;
++  const cropBox = getPageBox(pdf, page, 'CropBox');
++
++  if (!cropBox) {
++    return mediaBox;
++  }
++
++  const x = Math.max(cropBox.x, mediaBox.x);
++  const y = Math.max(cropBox.y, mediaBox.y);
++  const width = Math.min(cropBox.x + cropBox.width, mediaBox.x + mediaBox.width) - x;
++  const height = Math.min(cropBox.y + cropBox.height, mediaBox.y + mediaBox.height) - y;
++
++  if (width <= 0 || height <= 0) {
++    return mediaBox;
++  }
++
++  return { x, y, width, height };
++};
++
++/**
++ * The page's `/Rotate` (inherited if necessary), normalised the way pdf.js
++ * does: anything that is not a multiple of 90 is treated as 0.
++ */
++export const getPageRotation = (pdf: PDF, page: PDFPage): PageOverlayPlacement['rotation'] => {
++  const value = getInheritableAttribute(pdf, page, 'Rotate');
++  const rotate = value instanceof PdfNumber ? value.value : 0;
++
++  if (rotate % 90 !== 0) {
++    return 0;
++  }
++
++  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
++  return (((rotate % 360) + 360) % 360) as PageOverlayPlacement['rotation'];
++};
++
++/**
++ * Where a full-page overlay must be drawn so that it lines up with the page
++ * as a viewer displays it.
++ *
++ * The overlay is authored upright, at the displayed size of the visible box
++ * (width and height swapped for 90/270). `drawPage` rotates it about its
++ * origin by the page rotation, which leaves it covering a box anchored at
++ * (0, 0); the translation moves that onto the visible box, including the
++ * box's own lower-left corner, which need not be at the user-space origin.
++ */
++export const getPageOverlayPlacement = (pdf: PDF, page: PDFPage): PageOverlayPlacement => {
++  const box = getPageVisibleBox(pdf, page);
++  const rotation = getPageRotation(pdf, page);
++
++  const isSideways = rotation === 90 || rotation === 270;
++
++  const width = isSideways ? box.height : box.width;
++  const height = isSideways ? box.width : box.height;
++
++  switch (rotation) {
++    case 90:
++      return { width, height, rotation, x: box.x + box.width, y: box.y };
++    case 180:
++      return { width, height, rotation, x: box.x + box.width, y: box.y + box.height };
++    case 270:
++      return { width, height, rotation, x: box.x, y: box.y + box.height };
++    default:
++      return { width, height, rotation, x: box.x, y: box.y };
++  }
++};
++
++/**
++ * Draw a full-page overlay (e.g. from `insertFieldInPDFV2`) onto `page`, at
++ * the placement from `getPageOverlayPlacement`.
++ */
++export const drawPageOverlay = async (
++  pdf: PDF,
++  page: PDFPage,
++  overlay: PDF,
++  placement: PageOverlayPlacement,
++): Promise<void> => {
++  const embeddedPage = await pdf.embedPage(overlay, 0);
++
++  page.drawPage(embeddedPage, {
++    x: placement.x,
++    y: placement.y,
++    rotate: {
++      angle: placement.rotation,
++    },
++  });
++};

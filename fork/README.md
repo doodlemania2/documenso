@@ -69,6 +69,50 @@ service principal did not exist yet.) Poppler `pdfsig`: *Signature is Valid*, si
 timestamp, and the document timestamp is SSL.com's (policy `1.3.6.1.4.1.38064.1.3.6.1`), which
 `openssl ts -verify` confirms covers the document bytes. Adobe's green check was not yet confirmed.
 
+### 0002 — seal field values inside the page's visible box
+
+Upstream bug, found by TDPdf's integration work. When a v2 envelope is sealed
+(`seal-document.handler.ts`, the `internalVersion === 2` branch) — and when a
+PENDING envelope is served partially signed (`generate-partial-signed-pdf.ts`,
+an identical copy of that code) — the Konva field overlay was sized from
+`page.width`/`page.height` and drawn at `(0, 0)` plus a rotation-only
+translation. Fields are positioned against what react-pdf (pdf.js) displays,
+which is the CropBox clipped to the MediaBox, wherever it sits in user space.
+So on any page whose visible box does not start at `(0, 0)` the signer saw the
+field in one place and the sealed PDF had it somewhere else:
+
+- the box's lower-left corner was never added, shifting values left/down by it;
+- `@libpdf/core` 0.4.2's `getMediaBox()`/`getCropBox()` return the upper-right
+  corner as `width`/`height`, so an offset box was also mis-scaled (a CropBox
+  `[36 72 576 720]` reads as 576×720 instead of 540×648);
+- `/MediaBox` and `/Rotate` inherited from the page tree were ignored (an A4
+  page with its MediaBox on `/Pages` sealed as US Letter).
+
+The patch:
+
+- `packages/lib/server-only/pdf/page-overlay-placement.ts` (new):
+  `getPageOverlayPlacement` reads the boxes and rotation itself (inherited,
+  normalised, CropBox ∩ MediaBox — pdf.js's `Page.view`) and returns the
+  overlay's displayed size plus the `drawPage` origin, rotation-aware and
+  including the box's own origin. `drawPageOverlay` embeds and draws it.
+- Both call sites use it; nothing else changes. On an ordinary page (box at
+  the origin, rotation on the page itself) the drawn operators are identical
+  to upstream's.
+- `page-overlay-placement.test.ts`: 10 tests. Each builds a page (offset
+  CropBox at 0/90/180/270/-90, offset MediaBox, CropBox overhanging the
+  MediaBox, MediaBox and `/Rotate` inherited), seals an overlay with a field at
+  a known percentage, reads the `cm` operators back out of the saved content
+  stream, and maps them through a port of pdf.js's `PageViewport`: the overlay
+  must cover exactly the displayed page and the field must land at the same
+  percentages. Upstream's geometry fails 9 of the 10; dropping only the origin
+  fails 8.
+
+Not changed, same class of defect: the v1/legacy pdf-lib inserters
+(`insert-field-in-pdf-v1.ts`, `legacy-insert-field-in-pdf.ts`, used only by
+`internalVersion === 1` documents, not the v2 envelope API TDPdf uses), the
+CSC/TSP stamp overlay (`packages/ee/.../csc/`), and the centred rejection
+stamp. Written to be offered upstream as-is.
+
 ## Working on the patches
 
 ```bash
@@ -78,15 +122,22 @@ cd fork/upstream
 git apply ../patches/*.patch
 npm ci
 cd packages/signing && npx vitest run && npx tsc --noEmit -p tsconfig.json
-cd ../.. && npx biome check packages/signing packages/lib/server-only/cert
+cd ../lib && npx vitest run
+cd ../.. && npx biome check packages/signing packages/lib/server-only/cert packages/lib/server-only/pdf
 ```
 
-After changing code, regenerate the patch and its checksum:
+(`packages/lib` needs `npx prisma generate --schema packages/prisma/schema.prisma`
+first, or its type-check drowns in errors from the missing Prisma client.)
+
+After changing code, regenerate the patch you changed — **from its own files
+only**, since the working tree carries every patch at once — and the checksums:
 
 ```bash
-cd fork/upstream && git add -N . && git diff --binary > ../patches/0001-signing-azure-key-vault-transport.patch
+cd fork/upstream && git add -N . && git diff --binary -- <that patch's files> > ../patches/000N-<name>.patch
 cd ../patches && shasum -a 256 *.patch > SHA256SUMS
 ```
+
+Then prove the series still applies in order to a fresh clone of the tag.
 
 and bump the `-tdp.N` suffix of `IMAGE_TAG` in `pins.env`.
 

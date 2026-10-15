@@ -17,7 +17,7 @@ your own copy.
 | Path | What it is |
 |---|---|
 | [`fork/`](fork/) | Our Documenso build: upstream at a pinned release, plus a small patch series, built with upstream's own Dockerfile. Start with [`fork/README.md`](fork/README.md). |
-| [`fork/patches/`](fork/patches/) | The changes we make to Documenso. Today that is one patch: an **Azure Key Vault signing transport** (`azure-kv`). |
+| [`fork/patches/`](fork/patches/) | The changes we make to Documenso: an **Azure Key Vault signing transport** (`azure-kv`), and a fix so sealed field values land where the signer saw them on pages whose visible box is offset. |
 | [`deploy/`](deploy/) | The Docker Compose stack (Documenso + Postgres), with a [deployment runbook](deploy/README.md). `docker-compose.azure-kv.yml` is the overlay that switches signing to Key Vault. |
 | [`backup/`](backup/) | Whole-host backups with restic, including a restore rehearsal that proves the backups actually restore. See [`backup/README.md`](backup/README.md). |
 | [`LICENSE`](LICENSE), [`CHANGES.md`](CHANGES.md) | Documenso's AGPL-3.0 licence, unmodified, and the record of what we changed. |

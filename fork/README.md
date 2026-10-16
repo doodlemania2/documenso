@@ -157,6 +157,24 @@ redirect validation, a wrong or replayed verifier, tampered and foreign-signed c
 Not done: the token is **not scoped**. Documenso API tokens are all-powerful and scoping means
 changing token auth throughout the API, which is a separate and larger patch.
 
+### 0005 — a personal team on first connect
+
+`/connect/tdpdf` used to dead-end with "No team to connect" for a user who could not manage any
+team. Signup normally gives every user a "Personal Team" they administer, but creating it is best
+effort upstream (`createPersonalOrganisation` logs and swallows a failure), and a user may delete it.
+Now clicking Allow runs `ensureConnectableTeam` (`packages/lib/server-only/connect/tdpdf-connect-team.ts`):
+
+- the user has a manageable team: nothing is created;
+- they own a personal organisation with no team: the team is added there;
+- otherwise: a personal organisation and team are created for them;
+- a user in an SSO organisation that forbids personal organisations is left alone and told to ask
+  their administrator.
+
+It is deliberately never one shared team for everyone: with open signup, strangers in one team can
+see each other's documents. Creation is deduplicated per user within the process (a double click
+makes one team); with more than one server process that guard would not hold. The GET of the page
+never creates anything.
+
 ## Working on the patches
 
 ```bash

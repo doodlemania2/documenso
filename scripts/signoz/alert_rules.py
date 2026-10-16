@@ -25,11 +25,9 @@ TS = "fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AS ts"
 
 SERVICE = "doodlessd-backup"
 
-#: The heartbeat gauge, in both spellings. backup/lib-otlp.sh emits the dotted OTLP
-#: name; SigNoz's Prometheus-side path rewrites dots to underscores for some
-#: pipelines. No sample of either has ever arrived (verified 2026-10-16), so the
-#: spelling could not be confirmed. Matching both costs nothing and avoids a rule
-#: that never fires because of a dot.
+#: The heartbeat gauge. Confirmed 2026-10-16 (first real run after the relay key was
+#: issued) to arrive under the dotted OTLP name. The underscore spelling is kept as a
+#: harmless hedge against a pipeline that rewrites dots.
 HEARTBEAT_METRICS = (
     "backup.last_success.timestamp",
     "backup_last_success_timestamp",

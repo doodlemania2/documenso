@@ -16,6 +16,19 @@ _otlp_enabled() {
   [[ -n "${OTLP_ENDPOINT:-}" && -n "${OTLP_API_KEY:-}" ]]
 }
 
+# otlp_warn_if_disabled — say so in the journal when alerting is off.
+#
+# With an empty OTLP_API_KEY the job still runs and still succeeds, and SigNoz
+# never hears about it: the dead-man's-switch rule ("TDPdf Backup - No successful
+# backup in 36 hours") then fires forever, or the backup rots unwatched. A warning
+# on every run makes the empty key visible in `journalctl` instead of silent.
+# Never fails the caller.
+otlp_warn_if_disabled() {
+  _otlp_enabled && return 0
+  echo "WARN: OTLP_ENDPOINT/OTLP_API_KEY unset in ${CONFIG_FILE:-backup.env}: this run will NOT be reported to SigNoz, and no failure alert can fire. Issue a key with relayctl (see backup/README.md)." >&2
+  return 0
+}
+
 _otlp_post() {
   local path="$1" payload="$2"
   _otlp_enabled || return 0
@@ -39,7 +52,7 @@ _otlp_resource() {
 JSON
 }
 
-# otlp_gauge <metric.name> <int value> <unit>
+# otlp_gauge <metric.name> <int value> <unit> [label-key label-value]
 #
 # Emitted as a gauge, not a counter, on purpose: the value that matters is
 # "when did a backup last succeed", and a gauge holding a unix timestamp lets
@@ -48,9 +61,13 @@ JSON
 # all, because the unit was masked, the host was down, or someone disabled it
 # "just for a minute" during maintenance.
 otlp_gauge() {
-  local name="$1" value="$2" unit="${3:-1}"
-  local now_ns
+  # Optional 4th/5th args: one data-point label, e.g. `cert signing-chain`.
+  local name="$1" value="$2" unit="${3:-1}" lkey="${4:-}" lval="${5:-}"
+  local now_ns attrs=""
   now_ns="$(date +%s)000000000"
+  if [[ -n "$lkey" ]]; then
+    attrs=",\"attributes\":[{\"key\":\"${lkey}\",\"value\":{\"stringValue\":\"${lval}\"}}]"
+  fi
   _otlp_post /v1/metrics "$(cat <<JSON
 {"resourceMetrics":[{
   "resource": $(_otlp_resource),
@@ -61,7 +78,7 @@ otlp_gauge() {
       "unit":"${unit}",
       "gauge":{"dataPoints":[{
         "asInt":"${value}",
-        "timeUnixNano":"${now_ns}"
+        "timeUnixNano":"${now_ns}"${attrs}
       }]}
     }]
   }]

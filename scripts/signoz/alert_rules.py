@@ -42,6 +42,63 @@ NEVER_HOURS = 9999
 
 _METRIC_LIST = ", ".join(f"'{m}'" for m in HEARTBEAT_METRICS)
 
+#: Emitted by backup/doodlessd-backup.sh (emit_cert_expiry) once per successful run, one
+#: series per certificate, label ``cert``. The value is the certificate's notAfter as a
+#: unix timestamp. These are the two certificates whose lapse breaks signing silently.
+CERT_METRIC = "tdpdf.cert.not_after"
+EXPECTED_CERTS = ("signing-chain", "azure-signer")
+
+
+def _cert_days_left():
+    """Days remaining per certificate, from the latest sample in the last 3 days.
+
+    The gauge is emitted daily, so the rule's own window would never contain a sample;
+    this reads 3 days back (two missed runs) and takes the newest value per certificate.
+    """
+    return f"""SELECT cert, (argMax(v, unix_milli) - toUnixTimestamp(now())) / 86400 AS days_left
+  FROM (
+    SELECT s.unix_milli AS unix_milli, s.value AS v, t.cert AS cert
+    FROM signoz_metrics.distributed_samples_v4 AS s
+    INNER JOIN (
+      SELECT DISTINCT fingerprint, JSONExtractString(labels, 'cert') AS cert
+      FROM signoz_metrics.time_series_v4
+      WHERE metric_name = '{CERT_METRIC}'
+        AND JSONExtractString(labels, 'service.name') = '{SERVICE}'
+    ) AS t ON s.fingerprint = t.fingerprint
+    WHERE s.metric_name = '{CERT_METRIC}'
+      AND s.unix_milli >= (toUnixTimestamp(now()) - 3 * 86400) * 1000
+  )
+  GROUP BY cert"""
+
+
+def _cert_rule(name, severity, days, intent):
+    return {
+        "name": name,
+        "severity": severity,
+        "alert_type": "METRIC_BASED_ALERT",
+        "target": 0,
+        "eval_window": "1h0m0s",
+        "frequency": "1h0m0s",
+        "intent": intent,
+        "description": (
+            f"A TDPdf signing certificate has under {days} days left. Signing does not degrade "
+            "gracefully: when either lapses, NEW signatures fail while the app still looks healthy. "
+            "Runbook: the `cert` label of the alert names which. `signing-chain` is the SSL.com leaf "
+            "in Azure Key Vault (renew there, then update NEXT_PRIVATE_SIGNING_AZURE_KV_KEY_ID and "
+            "signing-chain.pem together and `docker compose up -d --force-recreate documenso`, see "
+            "fork/README.md). `azure-signer` is the signer identity's client certificate (rotate the "
+            "app registration credential and replace azure-signer.pem). Expiry is read from the "
+            "files on doodlessd by the nightly backup, so a renewal shows up after the next run."
+        ),
+        "query": f"""SELECT {TS},
+       toInt32(countIf(days_left < {days})) AS value
+FROM (
+  {_cert_days_left()}
+)
+GROUP BY ts""",
+    }
+
+
 RULES = [
     {
         "name": "TDPdf Backup - No successful backup in 36 hours",
@@ -106,6 +163,36 @@ FROM signoz_logs.distributed_logs_v2
 WHERE timestamp >= {{{{.start_timestamp_nano}}}} AND timestamp <= {{{{.end_timestamp_nano}}}}
   AND resources_string['service.name'] = '{SERVICE}'
   AND upper(severity_text) = 'ERROR'
+GROUP BY ts""",
+    },
+    _cert_rule("TDPdf Certs - A signing certificate expires within 30 days", "warning", 30,
+               "a signing certificate has less than 30 days left"),
+    _cert_rule("TDPdf Certs - A signing certificate expires within 7 days", "critical", 7,
+               "a signing certificate has less than 7 days left"),
+    {
+        "name": "TDPdf Certs - Certificate expiry is not being reported",
+        "severity": "warning",
+        "alert_type": "METRIC_BASED_ALERT",
+        "target": 0,
+        "eval_window": "1h0m0s",
+        "frequency": "1h0m0s",
+        "intent": "the nightly backup has not reported expiry for every signing certificate in 3 days",
+        "description": (
+            "The expiry rules above only see certificates that are being reported, so this counts "
+            "the ones that are MISSING. Value = expected certificates (signing-chain, azure-signer) "
+            "with no sample in 3 days. Causes: the cert file moved or became unreadable, CERT_FILES "
+            "was dropped from /etc/doodlessd-backup/backup.env, or the backup is not running (the "
+            "heartbeat rule fires too). Runbook, on doodlessd: `sudo journalctl -u doodlessd-backup "
+            "-n 80 | grep -i cert`, then check CERT_FILES and `sudo openssl x509 -noout -enddate -in "
+            "<path>`."
+        ),
+        "query": f"""SELECT {TS},
+       toInt32({len(EXPECTED_CERTS)} - uniqExactIf(cert, cert != '')) AS value
+FROM (
+  {_cert_days_left().replace('SELECT cert, (argMax(v, unix_milli) - toUnixTimestamp(now())) / 86400 AS days_left', 'SELECT cert, 0 AS days_left')}
+  UNION ALL
+  SELECT '' AS cert, 0 AS days_left
+)
 GROUP BY ts""",
     },
 ]

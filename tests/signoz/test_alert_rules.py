@@ -14,6 +14,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts", "signoz"))
 import apply_alert_rules  # noqa: E402
+import alert_rules  # noqa: E402
 from alert_rules import RULES  # noqa: E402
 
 REQUIRED = {"name", "severity", "alert_type", "target", "eval_window",
@@ -22,7 +23,7 @@ REQUIRED = {"name", "severity", "alert_type", "target", "eval_window",
 
 class RuleShape(unittest.TestCase):
     def test_there_are_rules(self):
-        self.assertGreaterEqual(len(RULES), 2)
+        self.assertGreaterEqual(len(RULES), 5)
 
     def test_names_unique_and_prefixed(self):
         names = [r["name"] for r in RULES]
@@ -53,6 +54,26 @@ class RuleShape(unittest.TestCase):
         q = next(r for r in RULES if "No successful backup" in r["name"])["query"]
         self.assertIn("UNION ALL", q)
         self.assertIn("9999", q)
+
+
+class CertRules(unittest.TestCase):
+    def test_cert_rules_exist_with_expected_severities(self):
+        by = {r["name"]: r["severity"] for r in RULES}
+        self.assertEqual(by["TDPdf Certs - A signing certificate expires within 30 days"], "warning")
+        self.assertEqual(by["TDPdf Certs - A signing certificate expires within 7 days"], "critical")
+        self.assertIn("TDPdf Certs - Certificate expiry is not being reported", by)
+
+    def test_metric_and_certs_match_what_the_backup_script_emits(self):
+        script = open(os.path.join(HERE, "..", "..", "backup", "doodlessd-backup.sh")).read()
+        example = open(os.path.join(HERE, "..", "..", "backup", "backup.env.example")).read()
+        self.assertIn(f'"{alert_rules.CERT_METRIC}"', script)
+        for cert in alert_rules.EXPECTED_CERTS:
+            self.assertIn(f"{cert}=", example)
+
+    def test_not_reported_rule_has_a_sentinel_row(self):
+        q = next(r for r in RULES if "not being reported" in r["name"])["query"]
+        self.assertIn("UNION ALL", q)
+        self.assertIn("uniqExactIf", q)
 
 
 class Channel(unittest.TestCase):

@@ -52,7 +52,7 @@ _otlp_resource() {
 JSON
 }
 
-# otlp_gauge <metric.name> <int value> <unit>
+# otlp_gauge <metric.name> <int value> <unit> [label-key label-value]
 #
 # Emitted as a gauge, not a counter, on purpose: the value that matters is
 # "when did a backup last succeed", and a gauge holding a unix timestamp lets
@@ -61,9 +61,13 @@ JSON
 # all, because the unit was masked, the host was down, or someone disabled it
 # "just for a minute" during maintenance.
 otlp_gauge() {
-  local name="$1" value="$2" unit="${3:-1}"
-  local now_ns
+  # Optional 4th/5th args: one data-point label, e.g. `cert signing-chain`.
+  local name="$1" value="$2" unit="${3:-1}" lkey="${4:-}" lval="${5:-}"
+  local now_ns attrs=""
   now_ns="$(date +%s)000000000"
+  if [[ -n "$lkey" ]]; then
+    attrs=",\"attributes\":[{\"key\":\"${lkey}\",\"value\":{\"stringValue\":\"${lval}\"}}]"
+  fi
   _otlp_post /v1/metrics "$(cat <<JSON
 {"resourceMetrics":[{
   "resource": $(_otlp_resource),
@@ -74,7 +78,7 @@ otlp_gauge() {
       "unit":"${unit}",
       "gauge":{"dataPoints":[{
         "asInt":"${value}",
-        "timeUnixNano":"${now_ns}"
+        "timeUnixNano":"${now_ns}"${attrs}
       }]}
     }]
   }]

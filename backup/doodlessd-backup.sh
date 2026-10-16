@@ -362,6 +362,29 @@ fi
 CURRENT_STEP="reporting"
 DURATION=$(( $(date +%s) - START_EPOCH ))
 
+# Certificate expiry. Best-effort and never fatal: a missing or unreadable cert file
+# must not turn a good backup red. Reads only the PUBLIC certificate (`openssl x509`
+# prints the first CERTIFICATE block and stops, so a PEM that also holds a private key,
+# like azure-signer.pem, is safe). CERT_FILES is "name=/path name=/path". SigNoz alerts
+# on days remaining and on a cert that stops being reported (scripts/signoz/).
+emit_cert_expiry() {
+  local pair name path end epoch
+  for pair in ${CERT_FILES:-}; do
+    name="${pair%%=*}"; path="${pair#*=}"
+    if ! end="$(openssl x509 -in "$path" -noout -enddate 2>/dev/null)"; then
+      log "WARN: cannot read certificate '${name}' at ${path}"
+      continue
+    fi
+    if ! epoch="$(date -d "${end#notAfter=}" +%s 2>/dev/null)"; then
+      log "WARN: cannot parse expiry of certificate '${name}'"
+      continue
+    fi
+    otlp_gauge "tdpdf.cert.not_after" "$epoch" "s" "cert" "$name"
+  done
+  return 0
+}
+emit_cert_expiry || true
+
 # The heartbeat. SigNoz alerts on its ABSENCE:
 #     now() - backup_last_success_timestamp_seconds > 36h
 # which is the only check that catches a timer that stopped firing entirely.

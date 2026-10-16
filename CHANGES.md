@@ -20,3 +20,16 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
   inherited `/MediaBox` or `/Rotate`, so on such pages the signed PDF did not match what the signer
   saw. A new `page-overlay-placement.ts` helper computes the placement the way pdf.js displays the
   page; both overlay call sites use it. Adds tests. Ordinary pages are unaffected.
+
+## 2026-10-16 — against v2.18.0 (`389390c884949fe27c240488a3259da3cdba93e0`)
+
+- **Rebrand to TDPdf Signing** (`fork/patches/0003-rebrand-tdpdf-signing.patch`). The product name,
+  logo, favicons, social images, web manifest and colour palette are now TDPdf's; user-facing text
+  and the emails say "TDPdf Signing"; the support page points at our contact address instead of
+  Documenso Inc.'s channels; the Documenso-Cloud promotional links ("View plans", "Check out
+  Documenso") are gone. A footer shows our copyright, a GitHub link and "Based on Documenso
+  (AGPL-3.0)" so the source offer required by section 13 is visible to every user. Nothing under
+  `packages/ee` is touched (it is under Documenso's commercial licence), and identifiers other
+  software depends on are unchanged: webhook and email `X-Documenso-*` headers and the
+  `recipient.N@documenso.com` stand-in addresses.
+

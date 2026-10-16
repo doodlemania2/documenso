@@ -113,6 +113,25 @@ Not changed, same class of defect: the v1/legacy pdf-lib inserters
 CSC/TSP stamp overlay (`packages/ee/.../csc/`), and the centred rejection
 stamp. Written to be offered upstream as-is.
 
+### 0003 — rebrand to TDPdf Signing
+
+Presentation only; no behaviour changes. One module, `packages/lib/constants/brand.ts`, holds the
+name, company, support address and source URL, so a rename is a one-file edit plus
+`npm run translate`. The mark is a vector trace of TDPdf's own (`Resources/splash-logo.png`), used
+by `BrandingLogo`/`BrandingLogoIcon`; `packages/assets`, `apps/remix/public` and
+`packages/email/static` carry the matching PNG/ICO/OG images. The palette moves from lime to TDP
+olive (`theme.css`, `tailwind-config`, and the hex mirror `lib/constants/theme.ts`, which must stay
+in step). `SiteFooter` (copyright, GitHub, "Based on Documenso (AGPL-3.0)") is on the sign-in pages,
+the in-app pages and the mobile menu; the account menu has a "Source code" entry.
+
+Deliberately left alone: `packages/ee`, the admin licence banners (they really are about the
+Documenso licence), the Cloud-only upsell cards (never shown self-hosted), webhook/email
+`X-Documenso-*` headers, and the `recipient.N@documenso.com` placeholders TDPdf relies on. Other
+locales fall back to English for the strings that changed, until they are re-translated.
+
+Not verified in a browser: the app screens (they need Postgres). Typecheck and `lingui extract`
+pass, and the email templates were rendered through the preview app.
+
 ## Working on the patches
 
 ```bash

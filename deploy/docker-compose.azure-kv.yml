@@ -21,7 +21,7 @@ services:
     # was verified:
     #   docker image inspect --format '{{.Id}}' tdp/documenso:v2.18.0-tdp.5   (sha256:5345db1e837f..., 2026-10-16)
     # Recorded ID: sha256:5345db1e837f5134b3d25380bb32d612536a39d5672b91aa40b04573c0b92867
-    #   (built 2026-10-10 on doodlessd from pins.env + patch 0001)
+    #   (built 2026-10-16 on doodlessd from pins.env + patches 0001-0005)
     image: tdp/documenso:v2.18.0-tdp.5
     pull_policy: never
     environment:

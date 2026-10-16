@@ -183,7 +183,10 @@ Three layers, because they catch different failures:
 Layer 3 is the one that matters most and is the easiest to leave out. An
 `OnFailure` hook **cannot fire for a unit that never ran** — masked, disabled
 "just for a minute" during maintenance, or on a host that was down. The alert
-to create in SigNoz is therefore about *absence*:
+is therefore about *absence*, and it is defined as code in `scripts/signoz/alert_rules.py`
+(rule "TDPdf Backup - No successful backup in 36 hours", plus a second rule for any ERROR log).
+Apply with `scripts/signoz/apply_alert_rules.py`; both page ntfy topic `tdpdf` through SigNoz
+channel `ntfy-tdpdf`. Never create them in the UI. The condition is:
 
 ```
 now() - backup.last_success.timestamp > 36h   → alert
@@ -193,8 +196,9 @@ now() - backup.last_success.timestamp > 36h   → alert
 pattern, and a threshold that pages on every transient network wobble gets
 muted within a fortnight.
 
-Worth a second alert on `backup.snapshot.count` going *down* outside a prune
-window, which is the signature of retention eating more than it should.
+A further alert on `backup.snapshot.count` going *down* outside a prune window (the
+signature of retention eating more than it should) is deliberately not written yet: the gauge has
+never arrived, so there is no real series to set a threshold against. Add it once weeks of data exist.
 
 **`OTLP_API_KEY` is empty in the template.** Issue one with
 `relayctl issue --tenant doodlessd-backup` on the relay host; it is printed

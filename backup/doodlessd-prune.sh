@@ -32,6 +32,7 @@ source "$CONFIG_FILE"
 set +a
 # shellcheck source=/dev/null
 source "${LIB_DIR}/lib-otlp.sh"
+otlp_warn_if_disabled
 
 CURRENT_STEP="startup"
 on_error() {

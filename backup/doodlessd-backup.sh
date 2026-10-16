@@ -45,6 +45,7 @@ source "$CONFIG_FILE"
 set +a
 # shellcheck source=/dev/null
 source "${LIB_DIR}/lib-otlp.sh"
+otlp_warn_if_disabled
 
 START_EPOCH="$(date +%s)"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"

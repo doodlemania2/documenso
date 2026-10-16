@@ -1,0 +1,378 @@
+diff --git a/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
+index d1107d9..3b7ca5a 100644
+--- a/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
++++ b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
+@@ -5,8 +5,7 @@ import {
+   isAllowedRedirectUri,
+   isValidCodeChallenge,
+ } from '@documenso/lib/server-only/connect/tdpdf-connect';
+-import { getTeams } from '@documenso/lib/server-only/team/get-teams';
+-import { canExecuteTeamAction } from '@documenso/lib/utils/teams';
++import { ensureConnectableTeam, getConnectableTeams } from '@documenso/lib/server-only/connect/tdpdf-connect-team';
+ import { Button } from '@documenso/ui/primitives/button';
+ import { msg } from '@lingui/core/macro';
+ import { Trans } from '@lingui/react/macro';
+@@ -43,12 +42,6 @@ const readParams = (source: URLSearchParams | FormData): ConnectParams | null =>
+   return { codeChallenge, state, redirectUri };
+ };
+ 
+-const getManageableTeams = async (userId: number) => {
+-  const teams = await getTeams({ userId });
+-
+-  return teams.filter((team) => canExecuteTeamAction('MANAGE_TEAM', team.currentTeamRole));
+-};
+-
+ export async function loader({ request }: Route.LoaderArgs) {
+   const url = new URL(request.url);
+ 
+@@ -64,7 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
+     return { valid: false as const };
+   }
+ 
+-  const teams = await getManageableTeams(session.user.id);
++  const teams = await getConnectableTeams(session.user.id);
+ 
+   return {
+     valid: true as const,
+@@ -103,16 +96,21 @@ export async function action({ request }: Route.ActionArgs) {
+     return { redirectTo: redirectTo.toString() };
+   }
+ 
+-  const teamId = Number(formData.get('teamId'));
+-  const teams = await getManageableTeams(session.user.id);
++  // A user with no team of their own gets a personal one now, on first connect.
++  const teams = await ensureConnectableTeam(session.user.id).catch(() => []);
+ 
+-  if (!teams.some((team) => team.id === teamId)) {
+-    return { error: 'invalid' as const };
++  // No team field means the page offered the personal team that is created for them.
++  const rawTeamId = formData.get('teamId');
++  const wantedTeamId = rawTeamId ? Number(rawTeamId) : Number.NaN;
++  const chosen = teams.find((team) => team.id === wantedTeamId) ?? (Number.isNaN(wantedTeamId) ? teams[0] : undefined);
++
++  if (!chosen) {
++    return { error: teams.length === 0 ? ('no-team' as const) : ('invalid' as const) };
+   }
+ 
+   const code = await createConnectCode({
+     userId: session.user.id,
+-    teamId,
++    teamId: chosen.id,
+     codeChallenge: params.codeChallenge,
+     redirectUri: params.redirectUri,
+   });
+@@ -161,19 +159,6 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+     );
+   }
+ 
+-  if (teams.length === 0) {
+-    return (
+-      <div className="mx-auto w-full max-w-md text-center">
+-        <h1 className="font-semibold text-2xl">
+-          <Trans>No team to connect</Trans>
+-        </h1>
+-        <p className="mt-3 text-muted-foreground text-sm">
+-          <Trans>Your account is not allowed to create API tokens for any team.</Trans>
+-        </p>
+-      </div>
+-    );
+-  }
+-
+   const isBusy = fetcher.state !== 'idle';
+ 
+   return (
+@@ -193,21 +178,29 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+       <input type="hidden" name="state" value={params.state} />
+       <input type="hidden" name="redirect_uri" value={params.redirectUri} />
+ 
+-      <label className="mt-6 block font-medium text-sm" htmlFor="teamId">
+-        <Trans>Team</Trans>
+-      </label>
+-      <select
+-        id="teamId"
+-        name="teamId"
+-        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+-        defaultValue={teams[0].id}
+-      >
+-        {teams.map((team) => (
+-          <option key={team.id} value={team.id}>
+-            {team.name}
+-          </option>
+-        ))}
+-      </select>
++      {teams.length > 0 ? (
++        <>
++          <label className="mt-6 block font-medium text-sm" htmlFor="teamId">
++            <Trans>Team</Trans>
++          </label>
++          <select
++            id="teamId"
++            name="teamId"
++            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
++            defaultValue={teams[0].id}
++          >
++            {teams.map((team) => (
++              <option key={team.id} value={team.id}>
++                {team.name}
++              </option>
++            ))}
++          </select>
++        </>
++      ) : (
++        <p className="mt-6 text-sm">
++          <Trans>You don't have a team yet, so we will create a personal team for you.</Trans>
++        </p>
++      )}
+ 
+       <p className="mt-3 text-muted-foreground text-xs">
+         <Trans>
+@@ -218,7 +211,13 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+ 
+       {fetcher.data && 'error' in fetcher.data && (
+         <p className="mt-3 text-destructive text-sm">
+-          <Trans>Something went wrong. Go back to TDPdf and try again.</Trans>
++          {fetcher.data.error === 'no-team' ? (
++            <Trans>
++              Your account cannot have a personal team here. Ask your organisation's administrator for a team.
++            </Trans>
++          ) : (
++            <Trans>Something went wrong. Go back to TDPdf and try again.</Trans>
++          )}
+         </p>
+       )}
+ 
+diff --git a/packages/lib/server-only/connect/tdpdf-connect-team.test.ts b/packages/lib/server-only/connect/tdpdf-connect-team.test.ts
+new file mode 100644
+index 0000000..cf739e5
+--- /dev/null
++++ b/packages/lib/server-only/connect/tdpdf-connect-team.test.ts
+@@ -0,0 +1,112 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++
++vi.mock('@documenso/prisma', () => ({
++  prisma: { organisationMember: { findFirst: vi.fn() }, organisation: { findFirst: vi.fn() } },
++}));
++vi.mock('../team/get-teams', () => ({ getTeams: vi.fn() }));
++vi.mock('../team/create-team', () => ({ createTeam: vi.fn() }));
++vi.mock('../organisation/create-organisation', () => ({ createPersonalOrganisation: vi.fn() }));
++
++import { prisma } from '@documenso/prisma';
++import { createPersonalOrganisation } from '../organisation/create-organisation';
++import { createTeam } from '../team/create-team';
++import { getTeams } from '../team/get-teams';
++import { ensureConnectableTeam, getConnectableTeams, resetPendingTeamCreations } from './tdpdf-connect-team';
++
++const team = (id: number, currentTeamRole: 'ADMIN' | 'MANAGER' | 'MEMBER') => ({ id, name: `t${id}`, currentTeamRole });
++
++/** getTeams answers [] until `created` is flipped, like a user gaining a team. */
++let created = false;
++const givenUserGainsTeamWhen = (spy: ReturnType<typeof vi.fn>) =>
++  spy.mockImplementation((() => {
++    created = true;
++
++    return Promise.resolve();
++  }) as never);
++
++describe('connectable teams', () => {
++  beforeEach(() => {
++    created = false;
++    resetPendingTeamCreations();
++    vi.resetAllMocks();
++    vi.mocked(getTeams).mockImplementation((async () => (created ? [team(5, 'ADMIN')] : [])) as never);
++    vi.mocked(prisma.organisationMember.findFirst).mockResolvedValue(null as never);
++    vi.mocked(prisma.organisation.findFirst).mockResolvedValue(null as never);
++  });
++
++  it('lists only teams the user can manage', async () => {
++    vi.mocked(getTeams).mockResolvedValue([team(1, 'MEMBER'), team(2, 'MANAGER'), team(3, 'ADMIN')] as never);
++
++    expect((await getConnectableTeams(1)).map((t) => t.id)).toEqual([2, 3]);
++  });
++
++  it('creates nothing for a user who already has a team', async () => {
++    created = true;
++
++    await ensureConnectableTeam(1);
++
++    expect(createPersonalOrganisation).not.toHaveBeenCalled();
++    expect(createTeam).not.toHaveBeenCalled();
++  });
++
++  it('gives a user with no organisation a personal organisation and team of their own', async () => {
++    givenUserGainsTeamWhen(vi.mocked(createPersonalOrganisation) as never);
++
++    const teams = await ensureConnectableTeam(7);
++
++    expect(createPersonalOrganisation).toHaveBeenCalledWith({
++      userId: 7,
++      throwErrorOnOrganisationCreationFailure: true,
++    });
++    expect(teams.map((t) => t.id)).toEqual([5]);
++  });
++
++  it('adds the team to an existing personal organisation instead of making a second one', async () => {
++    vi.mocked(prisma.organisation.findFirst).mockResolvedValue({ id: 'org_personal' } as never);
++    givenUserGainsTeamWhen(vi.mocked(createTeam) as never);
++
++    await ensureConnectableTeam(7);
++
++    // Only an organisation the user owns, and only a personal one, may receive the team.
++    expect(prisma.organisation.findFirst).toHaveBeenCalledWith(
++      expect.objectContaining({ where: { ownerUserId: 7, type: 'PERSONAL' } }),
++    );
++    expect(createTeam).toHaveBeenCalledWith(
++      expect.objectContaining({ userId: 7, organisationId: 'org_personal', inheritMembers: true }),
++    );
++    expect(vi.mocked(createTeam).mock.calls[0][0].teamUrl).toMatch(/^personal_/);
++    expect(createPersonalOrganisation).not.toHaveBeenCalled();
++  });
++
++  it('leaves alone a user whose SSO organisation forbids personal organisations', async () => {
++    vi.mocked(prisma.organisationMember.findFirst).mockResolvedValue({ id: 'm' } as never);
++
++    expect(await ensureConnectableTeam(7)).toEqual([]);
++    expect(createPersonalOrganisation).not.toHaveBeenCalled();
++    expect(createTeam).not.toHaveBeenCalled();
++  });
++
++  it('makes one team when asked twice at once', async () => {
++    givenUserGainsTeamWhen(vi.mocked(createPersonalOrganisation) as never);
++
++    await Promise.all([ensureConnectableTeam(7), ensureConnectableTeam(7)]);
++
++    expect(createPersonalOrganisation).toHaveBeenCalledTimes(1);
++  });
++
++  it('fails loudly if the organisation was made but its team was not', async () => {
++    vi.mocked(createPersonalOrganisation).mockResolvedValue({ id: 'org' } as never);
++
++    await expect(ensureConnectableTeam(7)).rejects.toThrow('Could not create a personal team');
++  });
++
++  it('can retry after a failure', async () => {
++    vi.mocked(createPersonalOrganisation).mockRejectedValueOnce(new Error('database down'));
++
++    await expect(ensureConnectableTeam(7)).rejects.toThrow('database down');
++
++    givenUserGainsTeamWhen(vi.mocked(createPersonalOrganisation) as never);
++
++    expect((await ensureConnectableTeam(7)).length).toBe(1);
++  });
++});
+diff --git a/packages/lib/server-only/connect/tdpdf-connect-team.ts b/packages/lib/server-only/connect/tdpdf-connect-team.ts
+new file mode 100644
+index 0000000..0c371eb
+--- /dev/null
++++ b/packages/lib/server-only/connect/tdpdf-connect-team.ts
+@@ -0,0 +1,111 @@
++import { prisma } from '@documenso/prisma';
++import { OrganisationType } from '@prisma/client';
++
++import { AppError, AppErrorCode } from '../../errors/app-error';
++import { prefixedId } from '../../universal/id';
++import { canExecuteTeamAction } from '../../utils/teams';
++import { createPersonalOrganisation } from '../organisation/create-organisation';
++import { createTeam } from '../team/create-team';
++import { getTeams } from '../team/get-teams';
++
++/**
++ * The teams a user can mint an API token for: the ones they may manage.
++ */
++export const getConnectableTeams = async (userId: number) => {
++  const teams = await getTeams({ userId });
++
++  return teams.filter((team) => canExecuteTeamAction('MANAGE_TEAM', team.currentTeamRole));
++};
++
++const pendingCreations = new Map<number, Promise<void>>();
++
++/**
++ * Returns the user's connectable teams, first giving them a team of their own
++ * if they have none.
++ *
++ * Signup normally creates a "Personal Team" the user administers, but not
++ * always: creating it is best effort upstream (the error is logged and
++ * swallowed), and a user may have deleted it. Without a team they cannot get
++ * an API token, so TDPdf could not connect.
++ *
++ * The team is always the user's own. A single team shared by every signup would
++ * be unsafe on an instance with open signup: strangers in one team can see one
++ * another's documents.
++ *
++ * Users who belong to an organisation whose SSO portal forbids personal
++ * organisations are left alone; that organisation's admins decide their teams.
++ */
++export const ensureConnectableTeam = async (userId: number) => {
++  const existing = await getConnectableTeams(userId);
++
++  if (existing.length > 0) {
++    return existing;
++  }
++
++  // One creation at a time per user, so a double click cannot make two teams.
++  const inFlight = pendingCreations.get(userId);
++
++  if (inFlight) {
++    await inFlight;
++  } else {
++    const creation = createPersonalTeam(userId).finally(() => pendingCreations.delete(userId));
++
++    pendingCreations.set(userId, creation);
++
++    await creation;
++  }
++
++  return await getConnectableTeams(userId);
++};
++
++const createPersonalTeam = async (userId: number) => {
++  // Re-check inside the lock: another request may have finished first.
++  if ((await getConnectableTeams(userId)).length > 0) {
++    return;
++  }
++
++  const forbidsPersonal = await prisma.organisationMember.findFirst({
++    where: {
++      userId,
++      organisation: {
++        organisationAuthenticationPortal: {
++          enabled: true,
++          allowPersonalOrganisations: false,
++        },
++      },
++    },
++    select: { id: true },
++  });
++
++  if (forbidsPersonal) {
++    return;
++  }
++
++  // A personal organisation without a team (its team failed to create): add the team.
++  const personalOrganisation = await prisma.organisation.findFirst({
++    where: { ownerUserId: userId, type: OrganisationType.PERSONAL },
++    select: { id: true },
++  });
++
++  if (personalOrganisation) {
++    await createTeam({
++      userId,
++      teamName: 'Personal Team',
++      teamUrl: prefixedId('personal'),
++      organisationId: personalOrganisation.id,
++      inheritMembers: true,
++    });
++
++    return;
++  }
++
++  await createPersonalOrganisation({ userId, throwErrorOnOrganisationCreationFailure: true });
++
++  // createPersonalOrganisation swallows a failure to create the team itself.
++  if ((await getConnectableTeams(userId)).length === 0) {
++    throw new AppError(AppErrorCode.UNKNOWN_ERROR, { message: 'Could not create a personal team' });
++  }
++};
++
++/** Test hook. */
++export const resetPendingTeamCreations = () => pendingCreations.clear();

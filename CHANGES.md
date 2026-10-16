@@ -38,3 +38,12 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
   authorization-code flow with PKCE (S256) and a loopback redirect, so TDPdf can obtain an API token
   without the user pasting one. Adds tests. No existing behaviour changes.
 
+## 2026-10-16 — against v2.18.0 (`389390c884949fe27c240488a3259da3cdba93e0`)
+
+- **A personal team on first connect** (`fork/patches/0005-tdpdf-connect-personal-team.patch`).
+  Connecting TDPdf needs a team the user can manage. A user who has none (signup creates the
+  personal team best effort; upstream swallows a failure there, and a user can delete it) is now
+  given a personal organisation and team of their own when they click Allow on `/connect/tdpdf`,
+  instead of being shown "No team to connect". Never a shared team: with open signup, strangers in
+  one team would see each other's documents. Adds tests.
+

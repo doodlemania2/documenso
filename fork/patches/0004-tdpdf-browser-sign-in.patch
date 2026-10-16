@@ -1,0 +1,561 @@
+diff --git a/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
+new file mode 100644
+index 0000000..d1107d9
+--- /dev/null
++++ b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
+@@ -0,0 +1,235 @@
++import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
++import { BRAND_NAME } from '@documenso/lib/constants/brand';
++import {
++  createConnectCode,
++  isAllowedRedirectUri,
++  isValidCodeChallenge,
++} from '@documenso/lib/server-only/connect/tdpdf-connect';
++import { getTeams } from '@documenso/lib/server-only/team/get-teams';
++import { canExecuteTeamAction } from '@documenso/lib/utils/teams';
++import { Button } from '@documenso/ui/primitives/button';
++import { msg } from '@lingui/core/macro';
++import { Trans } from '@lingui/react/macro';
++import { useEffect } from 'react';
++import { redirect, useFetcher } from 'react-router';
++
++import { appMetaTags } from '~/utils/meta';
++
++import type { Route } from './+types/connect.tdpdf';
++
++export function meta() {
++  return appMetaTags(msg`Connect TDPdf`);
++}
++
++type ConnectParams = {
++  codeChallenge: string;
++  state: string;
++  redirectUri: string;
++};
++
++const readParams = (source: URLSearchParams | FormData): ConnectParams | null => {
++  const codeChallenge = String(source.get('code_challenge') ?? '');
++  const state = String(source.get('state') ?? '');
++  const redirectUri = String(source.get('redirect_uri') ?? '');
++
++  if (!isValidCodeChallenge(codeChallenge) || !isAllowedRedirectUri(redirectUri)) {
++    return null;
++  }
++
++  if (state.length === 0 || state.length > 256) {
++    return null;
++  }
++
++  return { codeChallenge, state, redirectUri };
++};
++
++const getManageableTeams = async (userId: number) => {
++  const teams = await getTeams({ userId });
++
++  return teams.filter((team) => canExecuteTeamAction('MANAGE_TEAM', team.currentTeamRole));
++};
++
++export async function loader({ request }: Route.LoaderArgs) {
++  const url = new URL(request.url);
++
++  const session = await getOptionalSession(request);
++
++  if (!session.isAuthenticated) {
++    throw redirect(`/signin?returnTo=${encodeURIComponent(url.pathname + url.search)}`);
++  }
++
++  const params = readParams(url.searchParams);
++
++  if (!params) {
++    return { valid: false as const };
++  }
++
++  const teams = await getManageableTeams(session.user.id);
++
++  return {
++    valid: true as const,
++    params,
++    email: session.user.email,
++    teams: teams.map((team) => ({ id: team.id, name: team.name })),
++  };
++}
++
++/**
++ * Returns the URL to send the browser to rather than redirecting: the page's
++ * `form-action 'self'` policy would block a form post that ends at the
++ * loopback address, whereas a plain navigation is not covered by it.
++ */
++export async function action({ request }: Route.ActionArgs) {
++  const session = await getOptionalSession(request);
++
++  if (!session.isAuthenticated) {
++    return { error: 'unauthenticated' as const };
++  }
++
++  const formData = await request.formData();
++  const params = readParams(formData);
++
++  if (!params) {
++    return { error: 'invalid' as const };
++  }
++
++  const redirectTo = new URL(params.redirectUri);
++
++  redirectTo.searchParams.set('state', params.state);
++
++  if (formData.get('intent') !== 'allow') {
++    redirectTo.searchParams.set('error', 'access_denied');
++
++    return { redirectTo: redirectTo.toString() };
++  }
++
++  const teamId = Number(formData.get('teamId'));
++  const teams = await getManageableTeams(session.user.id);
++
++  if (!teams.some((team) => team.id === teamId)) {
++    return { error: 'invalid' as const };
++  }
++
++  const code = await createConnectCode({
++    userId: session.user.id,
++    teamId,
++    codeChallenge: params.codeChallenge,
++    redirectUri: params.redirectUri,
++  });
++
++  redirectTo.searchParams.set('code', code);
++
++  return { redirectTo: redirectTo.toString() };
++}
++
++export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
++  const fetcher = useFetcher<typeof action>();
++
++  const redirectTo = fetcher.data && 'redirectTo' in fetcher.data ? fetcher.data.redirectTo : undefined;
++
++  useEffect(() => {
++    if (redirectTo) {
++      window.location.href = redirectTo;
++    }
++  }, [redirectTo]);
++
++  if (!loaderData.valid) {
++    return (
++      <div className="mx-auto w-full max-w-md text-center">
++        <h1 className="font-semibold text-2xl">
++          <Trans>This link is not valid</Trans>
++        </h1>
++        <p className="mt-3 text-muted-foreground text-sm">
++          <Trans>Go back to TDPdf and choose Connect again.</Trans>
++        </p>
++      </div>
++    );
++  }
++
++  const { params, teams, email } = loaderData;
++
++  if (redirectTo) {
++    return (
++      <div className="mx-auto w-full max-w-md text-center">
++        <h1 className="font-semibold text-2xl">
++          <Trans>You can return to TDPdf</Trans>
++        </h1>
++        <p className="mt-3 text-muted-foreground text-sm">
++          <Trans>This window can be closed.</Trans>
++        </p>
++      </div>
++    );
++  }
++
++  if (teams.length === 0) {
++    return (
++      <div className="mx-auto w-full max-w-md text-center">
++        <h1 className="font-semibold text-2xl">
++          <Trans>No team to connect</Trans>
++        </h1>
++        <p className="mt-3 text-muted-foreground text-sm">
++          <Trans>Your account is not allowed to create API tokens for any team.</Trans>
++        </p>
++      </div>
++    );
++  }
++
++  const isBusy = fetcher.state !== 'idle';
++
++  return (
++    <fetcher.Form method="post" className="mx-auto w-full max-w-md rounded-lg border bg-background p-6 shadow-sm">
++      <h1 className="font-semibold text-2xl">
++        <Trans>Connect TDPdf</Trans>
++      </h1>
++
++      <p className="mt-3 text-muted-foreground text-sm">
++        <Trans>
++          TDPdf on your computer is asking to send documents for signature and read their status as {email} in{' '}
++          {BRAND_NAME}.
++        </Trans>
++      </p>
++
++      <input type="hidden" name="code_challenge" value={params.codeChallenge} />
++      <input type="hidden" name="state" value={params.state} />
++      <input type="hidden" name="redirect_uri" value={params.redirectUri} />
++
++      <label className="mt-6 block font-medium text-sm" htmlFor="teamId">
++        <Trans>Team</Trans>
++      </label>
++      <select
++        id="teamId"
++        name="teamId"
++        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
++        defaultValue={teams[0].id}
++      >
++        {teams.map((team) => (
++          <option key={team.id} value={team.id}>
++            {team.name}
++          </option>
++        ))}
++      </select>
++
++      <p className="mt-3 text-muted-foreground text-xs">
++        <Trans>
++          This creates an API token named "TDPdf" that lasts one year. You can revoke it at any time under the team's
++          API tokens.
++        </Trans>
++      </p>
++
++      {fetcher.data && 'error' in fetcher.data && (
++        <p className="mt-3 text-destructive text-sm">
++          <Trans>Something went wrong. Go back to TDPdf and try again.</Trans>
++        </p>
++      )}
++
++      <div className="mt-6 flex justify-end gap-3">
++        <Button type="submit" name="intent" value="deny" variant="outline" disabled={isBusy}>
++          <Trans>Cancel</Trans>
++        </Button>
++        <Button type="submit" name="intent" value="allow" loading={isBusy}>
++          <Trans>Allow</Trans>
++        </Button>
++      </div>
++    </fetcher.Form>
++  );
++}
+diff --git a/apps/remix/server/api/connect/connect.ts b/apps/remix/server/api/connect/connect.ts
+new file mode 100644
+index 0000000..150220a
+--- /dev/null
++++ b/apps/remix/server/api/connect/connect.ts
+@@ -0,0 +1,37 @@
++import { AppError } from '@documenso/lib/errors/app-error';
++import { redeemConnectCode } from '@documenso/lib/server-only/connect/tdpdf-connect';
++import { sValidator } from '@hono/standard-validator';
++import { Hono } from 'hono';
++import { z } from 'zod';
++
++import type { HonoEnv } from '../../router';
++
++const ZTokenRequestSchema = z.object({
++  code: z.string().min(1).max(2048),
++  code_verifier: z.string().min(1).max(256),
++});
++
++/**
++ * Token endpoint for the TDPdf desktop sign-in (see `tdpdf-connect.ts`).
++ * Called by the app itself, not a browser, so there is no CORS and no cookie.
++ */
++export const connectRoute = new Hono<HonoEnv>().post('/token', sValidator('json', ZTokenRequestSchema), async (c) => {
++  const { code, code_verifier: codeVerifier } = c.req.valid('json');
++
++  try {
++    const { token } = await redeemConnectCode({ code, codeVerifier });
++
++    c.header('Cache-Control', 'no-store');
++
++    return c.json({ token });
++  } catch (err) {
++    if (err instanceof AppError) {
++      // Deliberately one answer for every failure: it tells a guesser nothing.
++      return c.json({ error: 'invalid_grant' }, 400);
++    }
++
++    c.get('logger').error({ err }, 'TDPdf connect token exchange failed');
++
++    return c.json({ error: 'server_error' }, 500);
++  }
++});
+diff --git a/apps/remix/server/router.ts b/apps/remix/server/router.ts
+index 83681fb..dc5a39d 100644
+--- a/apps/remix/server/router.ts
++++ b/apps/remix/server/router.ts
+@@ -25,6 +25,7 @@ import { requestId } from 'hono/request-id';
+ import type { Logger } from 'pino';
+ 
+ import { aiRoute } from './api/ai/route';
++import { connectRoute } from './api/connect/connect';
+ import { downloadRoute } from './api/download/download';
+ import { filesRoute } from './api/files/files';
+ import { type AppContext, appContext } from './context';
+@@ -109,6 +110,10 @@ app.route('/api/auth', auth);
+ app.use('/api/files/upload-pdf', fileRateLimitMiddleware);
+ app.route('/api/files', filesRoute);
+ 
++// TDPdf desktop sign-in: code-for-token exchange.
++app.use('/api/connect/*', apiV2RateLimitMiddleware);
++app.route('/api/connect', connectRoute);
++
+ // AI route.
+ app.use('/api/ai/*', aiRateLimitMiddleware);
+ app.route('/api/ai', aiRoute);
+diff --git a/packages/lib/server-only/connect/tdpdf-connect.test.ts b/packages/lib/server-only/connect/tdpdf-connect.test.ts
+new file mode 100644
+index 0000000..1617f96
+--- /dev/null
++++ b/packages/lib/server-only/connect/tdpdf-connect.test.ts
+@@ -0,0 +1,89 @@
++import { createHash } from 'node:crypto';
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++
++vi.mock('../public-api/create-api-token', () => ({
++  createApiToken: vi.fn(async () => ({ id: 1, token: 'api_test' })),
++}));
++
++import { createApiToken } from '../public-api/create-api-token';
++import {
++  createConnectCode,
++  isAllowedRedirectUri,
++  isValidCodeChallenge,
++  redeemConnectCode,
++  resetUsedConnectCodes,
++} from './tdpdf-connect';
++
++const verifier = 'v'.repeat(50);
++const challenge = createHash('sha256').update(verifier).digest('base64url');
++const redirectUri = 'http://127.0.0.1:53211/cb';
++
++describe('tdpdf connect', () => {
++  beforeEach(() => {
++    process.env.NEXTAUTH_SECRET = 'test-secret';
++    resetUsedConnectCodes();
++    vi.mocked(createApiToken).mockClear();
++  });
++
++  it('only allows loopback redirects with a port', () => {
++    expect(isAllowedRedirectUri('http://127.0.0.1:1234/cb')).toBe(true);
++    expect(isAllowedRedirectUri('http://localhost:1234/cb')).toBe(true);
++    expect(isAllowedRedirectUri('http://[::1]:1234/cb')).toBe(true);
++    expect(isAllowedRedirectUri('http://127.0.0.1/cb')).toBe(false);
++    expect(isAllowedRedirectUri('https://127.0.0.1:1234/cb')).toBe(false);
++    expect(isAllowedRedirectUri('http://evil.example:1234/cb')).toBe(false);
++    expect(isAllowedRedirectUri('http://127.0.0.1.evil.example:1234/cb')).toBe(false);
++    expect(isAllowedRedirectUri('http://user@127.0.0.1:1234/cb')).toBe(false);
++    expect(isAllowedRedirectUri('not a url')).toBe(false);
++  });
++
++  it('validates the challenge shape', () => {
++    expect(isValidCodeChallenge(challenge)).toBe(true);
++    expect(isValidCodeChallenge('short')).toBe(false);
++  });
++
++  it('refuses to create a code for a bad redirect or challenge', async () => {
++    await expect(
++      createConnectCode({ userId: 1, teamId: 2, codeChallenge: challenge, redirectUri: 'http://evil.example:1/' }),
++    ).rejects.toThrow();
++    await expect(createConnectCode({ userId: 1, teamId: 2, codeChallenge: 'x', redirectUri })).rejects.toThrow();
++  });
++
++  it('exchanges a code for a token for the right user and team', async () => {
++    const code = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
++
++    await expect(redeemConnectCode({ code, codeVerifier: verifier })).resolves.toEqual({ token: 'api_test' });
++    expect(createApiToken).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, teamId: 9 }));
++  });
++
++  it('rejects a wrong verifier, and burns the code so it cannot be retried', async () => {
++    const code = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
++
++    await expect(redeemConnectCode({ code, codeVerifier: 'w'.repeat(50) })).rejects.toThrow();
++    await expect(redeemConnectCode({ code, codeVerifier: verifier })).rejects.toThrow();
++    expect(createApiToken).not.toHaveBeenCalled();
++  });
++
++  it('rejects a replayed code', async () => {
++    const code = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
++
++    await redeemConnectCode({ code, codeVerifier: verifier });
++    await expect(redeemConnectCode({ code, codeVerifier: verifier })).rejects.toThrow();
++    expect(createApiToken).toHaveBeenCalledTimes(1);
++  });
++
++  it('rejects a tampered code and one signed with another secret', async () => {
++    const code = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
++
++    await expect(redeemConnectCode({ code: `${code}x`, codeVerifier: verifier })).rejects.toThrow();
++
++    process.env.NEXTAUTH_SECRET = 'another-secret';
++    await expect(redeemConnectCode({ code, codeVerifier: verifier })).rejects.toThrow();
++  });
++
++  it('rejects a malformed verifier before touching the code', async () => {
++    const code = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
++
++    await expect(redeemConnectCode({ code, codeVerifier: 'short' })).rejects.toThrow();
++  });
++});
+diff --git a/packages/lib/server-only/connect/tdpdf-connect.ts b/packages/lib/server-only/connect/tdpdf-connect.ts
+new file mode 100644
+index 0000000..6cd4968
+--- /dev/null
++++ b/packages/lib/server-only/connect/tdpdf-connect.ts
+@@ -0,0 +1,153 @@
++import { createHash, timingSafeEqual } from 'node:crypto';
++import { jwtVerify, SignJWT } from 'jose';
++
++import { AppError, AppErrorCode } from '../../errors/app-error';
++import { env } from '../../utils/env';
++import { createApiToken } from '../public-api/create-api-token';
++
++/**
++ * "Sign in with the browser" for the TDPdf desktop app.
++ *
++ * It is the OAuth authorization-code flow with PKCE (RFC 7636, S256) and a
++ * loopback redirect (RFC 8252), cut down to what one native client needs:
++ *
++ *   1. TDPdf opens /connect/tdpdf in the browser with a code challenge, a state
++ *      and a loopback redirect URI.
++ *   2. The signed-in user picks a team and approves. We mint a short-lived,
++ *      signed, single-use code bound to the user, team, challenge and redirect.
++ *   3. TDPdf posts the code and its verifier to /api/connect/token and receives
++ *      an ordinary API token.
++ *
++ * The code is a signed JWT rather than a database row so this needs no schema
++ * change. Single use is enforced in memory, which is sound for one server
++ * process; with several the 2-minute lifetime plus PKCE still bound a replay.
++ */
++
++const CODE_TTL_SECONDS = 120;
++const CODE_TYPE = 'tdpdf-connect';
++const TOKEN_EXPIRES_IN = 'ONE_YEAR';
++
++const usedCodes = new Map<string, number>();
++
++const getKey = () => {
++  const secret = env('NEXTAUTH_SECRET');
++
++  if (!secret) {
++    throw new AppError(AppErrorCode.UNKNOWN_ERROR, { message: 'NEXTAUTH_SECRET is not set' });
++  }
++
++  // Domain-separate from the session cookie key.
++  return createHash('sha256').update(`${CODE_TYPE}:${secret}`).digest();
++};
++
++const pruneUsedCodes = (now: number) => {
++  for (const [jti, expiresAt] of usedCodes) {
++    if (expiresAt <= now) {
++      usedCodes.delete(jti);
++    }
++  }
++};
++
++const s256 = (verifier: string) => createHash('sha256').update(verifier).digest('base64url');
++
++/** A S256 challenge is the base64url of a 32 byte hash: exactly 43 characters. */
++export const isValidCodeChallenge = (value: string) => /^[A-Za-z0-9_-]{43}$/.test(value);
++
++export const isValidCodeVerifier = (value: string) => /^[A-Za-z0-9._~-]{43,128}$/.test(value);
++
++/**
++ * Only a loopback address with an explicit port may receive the code, so it can
++ * never be sent to a host on the network (RFC 8252 section 7.3).
++ */
++export const isAllowedRedirectUri = (value: string) => {
++  try {
++    const url = new URL(value);
++
++    return (
++      url.protocol === 'http:' &&
++      ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) &&
++      url.port !== '' &&
++      url.username === '' &&
++      url.password === '' &&
++      url.hash === ''
++    );
++  } catch {
++    return false;
++  }
++};
++
++export type CreateConnectCodeOptions = {
++  userId: number;
++  teamId: number;
++  codeChallenge: string;
++  redirectUri: string;
++};
++
++export const createConnectCode = async ({ userId, teamId, codeChallenge, redirectUri }: CreateConnectCodeOptions) => {
++  if (!isValidCodeChallenge(codeChallenge) || !isAllowedRedirectUri(redirectUri)) {
++    throw new AppError(AppErrorCode.INVALID_REQUEST, { message: 'Invalid connect request' });
++  }
++
++  return await new SignJWT({ typ: CODE_TYPE, tid: teamId, cc: codeChallenge, ru: redirectUri })
++    .setProtectedHeader({ alg: 'HS256' })
++    .setSubject(String(userId))
++    .setJti(crypto.randomUUID())
++    .setIssuedAt()
++    .setExpirationTime(`${CODE_TTL_SECONDS}s`)
++    .sign(getKey());
++};
++
++export type RedeemConnectCodeOptions = {
++  code: string;
++  codeVerifier: string;
++};
++
++const invalidGrant = () => new AppError(AppErrorCode.UNAUTHORIZED, { message: 'Invalid or expired code' });
++
++export const redeemConnectCode = async ({ code, codeVerifier }: RedeemConnectCodeOptions) => {
++  if (!isValidCodeVerifier(codeVerifier)) {
++    throw invalidGrant();
++  }
++
++  const payload = await jwtVerify(code, getKey(), { algorithms: ['HS256'] })
++    .then((result) => result.payload)
++    .catch(() => {
++      throw invalidGrant();
++    });
++
++  const { typ, tid, cc, jti, sub, exp } = payload;
++
++  if (typ !== CODE_TYPE || typeof tid !== 'number' || typeof cc !== 'string' || !jti || !sub || !exp) {
++    throw invalidGrant();
++  }
++
++  const now = Date.now();
++
++  pruneUsedCodes(now);
++
++  // Burn the code before checking the verifier, so a wrong guess cannot be retried.
++  if (usedCodes.has(jti)) {
++    throw invalidGrant();
++  }
++
++  usedCodes.set(jti, exp * 1000);
++
++  const expected = Buffer.from(cc);
++  const actual = Buffer.from(s256(codeVerifier));
++
++  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
++    throw invalidGrant();
++  }
++
++  const { token } = await createApiToken({
++    userId: Number(sub),
++    teamId: tid,
++    tokenName: `TDPdf (${new Date(now).toISOString().slice(0, 10)})`,
++    expiresIn: TOKEN_EXPIRES_IN,
++  });
++
++  return { token };
++};
++
++/** Test hook: forget which codes were spent. */
++export const resetUsedConnectCodes = () => usedCodes.clear();

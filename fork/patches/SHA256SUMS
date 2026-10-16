@@ -1,3 +1,4 @@
 16e6394f7c4ef6a05f297f30517cbd3c3eb2c8284bd42ad675320c6a52da8725  0001-signing-azure-key-vault-transport.patch
 77d5403d3963403347e6ae541b4bcdef0a90e85ba916f90b5e488f18c9c1c6e8  0002-seal-respect-visible-box-origin.patch
 8ab6a89be9eaa80043bea431ea43c223568bc21c2a036fdd821939c866d63952  0003-rebrand-tdpdf-signing.patch
+32fd9a8e39ad2dfdd658e279263b7b21c7347c0912206a1d85c68fa488eeec77  0004-tdpdf-browser-sign-in.patch

@@ -33,3 +33,8 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
   software depends on are unchanged: webhook and email `X-Documenso-*` headers and the
   `recipient.N@documenso.com` stand-in addresses.
 
+- **Browser sign-in for the TDPdf desktop app** (`fork/patches/0004-tdpdf-browser-sign-in.patch`).
+  A new `/connect/tdpdf` page and `POST /api/connect/token` endpoint implement the OAuth
+  authorization-code flow with PKCE (S256) and a loopback redirect, so TDPdf can obtain an API token
+  without the user pasting one. Adds tests. No existing behaviour changes.
+

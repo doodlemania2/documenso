@@ -113,6 +113,50 @@ Not changed, same class of defect: the v1/legacy pdf-lib inserters
 CSC/TSP stamp overlay (`packages/ee/.../csc/`), and the centred rejection
 stamp. Written to be offered upstream as-is.
 
+### 0003 — rebrand to TDPdf Signing
+
+Presentation only; no behaviour changes. One module, `packages/lib/constants/brand.ts`, holds the
+name, company, support address and source URL, so a rename is a one-file edit plus
+`npm run translate`. The mark is a vector trace of TDPdf's own (`Resources/splash-logo.png`), used
+by `BrandingLogo`/`BrandingLogoIcon`; `packages/assets`, `apps/remix/public` and
+`packages/email/static` carry the matching PNG/ICO/OG images. The palette moves from lime to TDP
+olive (`theme.css`, `tailwind-config`, and the hex mirror `lib/constants/theme.ts`, which must stay
+in step). `SiteFooter` (copyright, GitHub, "Based on Documenso (AGPL-3.0)") is on the sign-in pages,
+the in-app pages and the mobile menu; the account menu has a "Source code" entry.
+
+Deliberately left alone: `packages/ee`, the admin licence banners (they really are about the
+Documenso licence), the Cloud-only upsell cards (never shown self-hosted), webhook/email
+`X-Documenso-*` headers, and the `recipient.N@documenso.com` placeholders TDPdf relies on. Other
+locales fall back to English for the strings that changed, until they are re-translated.
+
+Not verified in a browser: the app screens (they need Postgres). Typecheck and `lingui extract`
+pass, and the email templates were rendered through the preview app.
+
+### 0004 — browser sign-in for TDPdf (`/connect/tdpdf`)
+
+Replaces "create a token in Settings and paste it" for the TDPdf desktop app with the standard
+native-app flow (authorization code + PKCE S256, loopback redirect, RFC 8252).
+
+Contract, for the TDPdf client:
+
+1. Generate a random `code_verifier` (43-128 chars of `A-Za-z0-9._~-`), `code_challenge =
+   base64url(SHA-256(verifier))`, a random `state`, and listen on `http://127.0.0.1:{port}/cb`.
+2. Open `{base}/connect/tdpdf?code_challenge=…&state=…&redirect_uri=http://127.0.0.1:{port}/cb` in the
+   browser. The user signs in if needed, picks a team (one they can manage) and clicks Allow.
+3. The browser lands on `redirect_uri?code=…&state=…` (or `?error=access_denied&state=…`). Check `state`.
+4. `POST {base}/api/connect/token` with JSON `{"code": "…", "code_verifier": "…"}`. Success is
+   `200 {"token": "api_…"}`; every failure is `400 {"error": "invalid_grant"}`. The token is an ordinary
+   one-year API token named `TDPdf (date)`, listed and revocable under the team's API tokens.
+
+`redirect_uri` must be loopback (`127.0.0.1`, `localhost`, `[::1]`) with an explicit port and no
+credentials, otherwise the page says the link is not valid. The code is a signed JWT bound to the
+user, team, challenge and redirect; it lives 2 minutes and is single use (tracked in memory, so
+sound for one server process). `packages/lib/server-only/connect/tdpdf-connect.test.ts` covers
+redirect validation, a wrong or replayed verifier, tampered and foreign-signed codes.
+
+Not done: the token is **not scoped**. Documenso API tokens are all-powerful and scoping means
+changing token auth throughout the API, which is a separate and larger patch.
+
 ## Working on the patches
 
 ```bash

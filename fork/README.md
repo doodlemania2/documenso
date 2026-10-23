@@ -179,7 +179,7 @@ never creates anything.
 
 ```bash
 source ~/.nvm/nvm.sh && nvm use 24          # upstream requires Node >= 24
-git clone --depth 1 --branch v2.18.0 https://github.com/documenso/documenso.git fork/upstream
+git clone --depth 1 --branch v2.21.1 https://github.com/documenso/documenso.git fork/upstream
 cd fork/upstream
 git apply ../patches/*.patch
 npm ci
@@ -272,6 +272,9 @@ All on `doodlessd`, in `/home/derek/documenso-stack` unless noted.
 image and the self-signed `.p12`, which the overlay never removes.
 
 ## Upgrading upstream
+
+**Adopting an upstream release is a decision Derek makes each time.** Do not sync or deploy a new
+release unprompted: report what changed and wait for a yes.
 
 1. Update `UPSTREAM_TAG` and `UPSTREAM_COMMIT` in `pins.env` (verify the commit
    against the GitHub release, not just the tag), reset `-tdp.N` to `-tdp.1`.

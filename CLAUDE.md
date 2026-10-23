@@ -34,3 +34,8 @@ Repo specifics:
   Needs secrets `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `NTFY_URL`.
 - The stack on doodlessd runs three compose files, in this order: `docker-compose.yml`,
   `docker-compose.azure-kv.yml`, `docker-compose.image.yml`.
+
+## Upstream adoption is Derek's call, every time
+Never bump `fork/pins.env` to a new upstream release (or deploy one) on your own initiative. When a
+new Documenso release exists, tell Derek what changed (release notes, migrations, v2 API changes,
+patch conflicts) and wait for a yes. The v2.18.0 -> v2.21.1 sync was done at his request.

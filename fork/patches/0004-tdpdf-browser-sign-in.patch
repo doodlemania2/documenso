@@ -1,6 +1,6 @@
 diff --git a/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
 new file mode 100644
-index 0000000..d1107d9
+index 000000000..d1107d9cd
 --- /dev/null
 +++ b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
 @@ -0,0 +1,235 @@
@@ -241,7 +241,7 @@ index 0000000..d1107d9
 +}
 diff --git a/apps/remix/server/api/connect/connect.ts b/apps/remix/server/api/connect/connect.ts
 new file mode 100644
-index 0000000..150220a
+index 000000000..150220a01
 --- /dev/null
 +++ b/apps/remix/server/api/connect/connect.ts
 @@ -0,0 +1,37 @@
@@ -283,10 +283,10 @@ index 0000000..150220a
 +  }
 +});
 diff --git a/apps/remix/server/router.ts b/apps/remix/server/router.ts
-index 83681fb..dc5a39d 100644
+index bb9610371..a95dddd81 100644
 --- a/apps/remix/server/router.ts
 +++ b/apps/remix/server/router.ts
-@@ -25,6 +25,7 @@ import { requestId } from 'hono/request-id';
+@@ -26,6 +26,7 @@ import { requestId } from 'hono/request-id';
  import type { Logger } from 'pino';
  
  import { aiRoute } from './api/ai/route';
@@ -294,7 +294,7 @@ index 83681fb..dc5a39d 100644
  import { downloadRoute } from './api/download/download';
  import { filesRoute } from './api/files/files';
  import { type AppContext, appContext } from './context';
-@@ -109,6 +110,10 @@ app.route('/api/auth', auth);
+@@ -126,6 +127,10 @@ app.route('/api/auth', auth);
  app.use('/api/files/upload-pdf', fileRateLimitMiddleware);
  app.route('/api/files', filesRoute);
  
@@ -307,7 +307,7 @@ index 83681fb..dc5a39d 100644
  app.route('/api/ai', aiRoute);
 diff --git a/packages/lib/server-only/connect/tdpdf-connect.test.ts b/packages/lib/server-only/connect/tdpdf-connect.test.ts
 new file mode 100644
-index 0000000..1617f96
+index 000000000..1617f968c
 --- /dev/null
 +++ b/packages/lib/server-only/connect/tdpdf-connect.test.ts
 @@ -0,0 +1,89 @@
@@ -402,7 +402,7 @@ index 0000000..1617f96
 +});
 diff --git a/packages/lib/server-only/connect/tdpdf-connect.ts b/packages/lib/server-only/connect/tdpdf-connect.ts
 new file mode 100644
-index 0000000..6cd4968
+index 000000000..6cd49685d
 --- /dev/null
 +++ b/packages/lib/server-only/connect/tdpdf-connect.ts
 @@ -0,0 +1,153 @@

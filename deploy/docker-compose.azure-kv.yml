@@ -11,20 +11,19 @@
 # TDP-182), and two files in ./secrets/.
 services:
   documenso:
-    # Our image: upstream v2.18.0 + fork/patches/, built on doodlemanage by
-    # fork/build.sh, pushed to the internal registry, then pulled on this host
-    # and tagged tdp/documenso:<tag> by hand (see fork/README.md, "Building").
-    # Compose never pulls it, so `pull_policy: never` makes a missing local
-    # image a hard error instead of a pull of whatever Docker Hub might have
-    # under the same name.
+    # Our image: upstream v2.21.1 + fork/patches/, built by fork/build.sh (normally on
+    # doodlemanage; the tdp.1 build recorded below was a one-off on this host). Compose never
+    # pulls it, so `pull_policy: never` makes a missing local image a hard error instead of a
+    # pull of whatever Docker Hub might have under the same name. Once the deploy workflow has
+    # run, docker-compose.image.yml overrides this image with a registry digest.
     #
     # A locally built image has no registry digest to pin, so the pin is its
     # image ID. Before cutover, confirm the image on the host is the one that
     # was verified:
-    #   docker image inspect --format '{{.Id}}' tdp/documenso:v2.18.0-tdp.5   (sha256:5345db1e837f..., 2026-10-16)
-    # Recorded ID: sha256:5345db1e837f5134b3d25380bb32d612536a39d5672b91aa40b04573c0b92867
-    #   (built 2026-10-16 on doodlessd from pins.env + patches 0001-0005)
-    image: tdp/documenso:v2.18.0-tdp.5
+    #   docker image inspect --format '{{.Id}}' tdp/documenso:v2.21.1-tdp.1   (sha256:843066895d37..., 2026-10-23)
+    # Recorded ID: sha256:843066895d37279a9f2d6b5304fd7d4ef24fe17124a921385efccb79a4039356
+    #   (built 2026-10-23 on doodlessd from pins.env + patches 0001-0005)
+    image: tdp/documenso:v2.21.1-tdp.1
     pull_policy: never
     environment:
       NEXT_PRIVATE_SIGNING_TRANSPORT: azure-kv

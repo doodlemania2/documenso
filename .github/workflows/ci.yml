@@ -10,9 +10,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # The deploy workflow starts this by hand on its bump branch: a PR opened with GITHUB_TOKEN
-  # starts no workflow, so the required checks would never appear.
-  workflow_dispatch:
 
 permissions:
   contents: read

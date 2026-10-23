@@ -1,0 +1,224 @@
+# Build, pin and deploy on merge to main.
+#
+#   plan    decides what the push needs (ubuntu-latest)
+#   build   fork/build.sh on doodlemanage, pushes to the registry, reads the digest
+#   bump    opens a PR that pins the digest in deploy/docker-compose.image.yml, runs the five
+#           required checks on it, merges it, and starts the deploy (ubuntu-latest)
+#   deploy  deploy/doodlessd/deploy.sh on the doodlessd runner: dump, pull by digest, up -d,
+#           health check, roll back on failure
+#
+# Two kinds of push to main start a run:
+#   - fork/ build inputs changed (pins.env, build.sh, patches/)  -> build, bump, then deploy
+#   - deploy/docker-compose*.yml changed (for example the bump PR merged by hand) -> deploy only
+# README and backup edits start nothing.
+#
+# The bump job merges with GITHUB_TOKEN, and a push made with GITHUB_TOKEN starts no workflow. So the
+# bump job starts the deploy itself with workflow_dispatch. For the same reason it starts ci.yml on
+# the bump branch by hand, so the required checks exist on the PR.
+#
+# Needs: secrets REGISTRY_USERNAME, REGISTRY_PASSWORD, NTFY_URL; variable BUILD_RUNNER; the runner
+# doodlessd-documenso-deploy (deploy/doodlessd/docker-compose.runner.yml); and the repo setting
+# "Allow GitHub Actions to create and approve pull requests".
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "fork/pins.env"
+      - "fork/build.sh"
+      - "fork/patches/**"
+      - "deploy/docker-compose*.yml"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "build = build, pin and deploy. deploy = deploy what main pins now."
+        type: choice
+        options: [deploy, build]
+        default: deploy
+
+permissions:
+  contents: read
+
+# A deploy half-way through is worse to interrupt than to queue behind. Never cancel one.
+concurrency:
+  group: deploy-documenso
+  cancel-in-progress: false
+
+env:
+  REGISTRY: registry.cluster.thedoodleproject.net
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      deploy: ${{ steps.plan.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          build=false; deploy=false
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            [[ "$MODE" == build ]] && build=true || deploy=true
+          else
+            # A merge commit has two parents. Compare with the first: that is main before the merge.
+            changed="$(git diff --name-only HEAD^1 HEAD)"
+            grep -qE '^fork/(pins\.env|build\.sh|patches/)' <<<"$changed" && build=true || true
+            grep -qE '^deploy/docker-compose[^/]*\.yml$' <<<"$changed" && deploy=true || true
+            # A build run deploys through bump, after the pin exists. Do not deploy the old pin first.
+            [[ "$build" == true ]] && deploy=false
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+          echo "build=$build deploy=$deploy"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ${{ vars.BUILD_RUNNER }}
+    timeout-minutes: 90
+    outputs:
+      ref: ${{ steps.digest.outputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Log in to the registry
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+      - name: Build and push
+        # --load keeps the image in the local store, so the digest can be read after the push.
+        run: PUSH=1 BUILD_EXTRA_ARGS="--load" fork/build.sh
+      - name: Read the registry digest
+        id: digest
+        run: |
+          set -euo pipefail
+          # shellcheck source=fork/pins.env
+          source fork/pins.env
+          image="$REGISTRY/documenso:${IMAGE_TAG#*:}"
+          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" \
+            | grep -F "$REGISTRY/documenso@sha256:" | head -n1 | sed 's/.*@//')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no registry digest for $image"; exit 1; }
+          echo "ref=$image@$digest" >> "$GITHUB_OUTPUT"
+          echo "pinned: $image@$digest"
+      - name: Log out of the registry
+        if: always()
+        run: docker logout "$REGISTRY" || true
+
+  bump:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REF: ${{ needs.build.outputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - name: Pin the digest on a branch and open the PR
+        id: pr
+        run: |
+          set -euo pipefail
+          tag="${REF#*documenso:}"; tag="${tag%@*}"
+          branch="deploy/image-${tag}-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          cat > deploy/docker-compose.image.yml <<YAML
+          # Written by .github/workflows/deploy.yml. Do not edit by hand.
+          # The image deploy.sh rolls out: registry tag plus digest. The digest is what is pulled;
+          # the tag is for people (and for deploy.sh's downgrade check). This file overrides the
+          # image of docker-compose.azure-kv.yml, so the overlay stays untouched.
+          services:
+            documenso:
+              image: ${REF}
+              pull_policy: missing
+          YAML
+          git add deploy/docker-compose.image.yml
+          git commit -q -m "deploy: pin ${tag} (${REF##*@})"
+          git push -q origin "$branch"
+          url="$(gh pr create --base main --head "$branch" \
+            --title "deploy: pin ${tag}" \
+            --body "Opened by the deploy workflow (run ${GITHUB_RUN_ID}). Pins \`${REF}\`. It merges itself when the five required checks pass, then deploys.")"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "pr=${url##*/}" >> "$GITHUB_OUTPUT"
+      - name: Run the required checks on the PR branch
+        # A PR opened with GITHUB_TOKEN starts no workflow. A manual dispatch is allowed.
+        env:
+          BRANCH: ${{ steps.pr.outputs.branch }}
+        run: gh workflow run ci.yml --ref "$BRANCH"
+      - name: Wait for the checks, merge, start the deploy
+        env:
+          PR: ${{ steps.pr.outputs.pr }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 120); do
+            buckets="$(gh pr checks "$PR" --required --json bucket -q '.[].bucket' 2>/dev/null || true)"
+            if [[ -n "$buckets" ]] && ! grep -qx pending <<<"$buckets"; then break; fi
+            sleep 10
+          done
+          passed="$(grep -cx pass <<<"$buckets" || true)"
+          if [[ "$passed" != 5 ]]; then
+            echo "::error::expected 5 passing required checks, saw: $(tr '\n' ' ' <<<"$buckets")"
+            exit 1
+          fi
+          gh pr merge "$PR" --merge --delete-branch
+          gh workflow run deploy.yml --ref main -f mode=deploy
+
+  deploy:
+    needs: plan
+    if: needs.plan.outputs.deploy == 'true'
+    runs-on: doodlessd-documenso-deploy
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - name: Log in to the registry
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+      - name: Deploy
+        run: deploy/doodlessd/deploy.sh "$GITHUB_WORKSPACE/deploy"
+      - name: Post a success notice to ntfy
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+        run: |
+          image="$(cat /home/derek/documenso-stack/.deployed-image 2>/dev/null || echo unknown)"
+          curl -fsS -m 20 -X POST \
+            -H "Title: documenso deployed" -H "Priority: default" -H "Tags: white_check_mark" \
+            -d "deployed ${image##*/}" "$NTFY_URL" >/dev/null 2>&1 || true
+      - name: Log out of the registry
+        if: always()
+        run: docker logout "$REGISTRY" || true
+
+  notify-failure:
+    needs: [plan, build, bump, deploy]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post a failure notice to ntfy
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -fsS -m 20 -X POST \
+            -H "Title: documenso deploy failed" \
+            -H "Priority: urgent" \
+            -H "Tags: rotating_light" \
+            -d "deploy workflow failed. A rollback may have run. ${RUN_URL}" \
+            "$NTFY_URL" >/dev/null 2>&1 || true

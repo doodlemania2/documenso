@@ -1,0 +1,45 @@
+# The DEPLOY runner for this repo, on doodlessd. It runs the deploy job in .github/workflows/deploy.yml.
+#
+# Lives at /home/derek/documenso-deploy-runner/docker-compose.yml, beside documenso-stack. The build
+# runs on doodlemanage (deploy/doodlemanage/); this runner lives on the host that must change, so a
+# deploy needs no inbound port and no SSH key. doodlessd is reachable only over Tailscale.
+#
+# It holds the Docker socket, which is root on this host, and it mounts the stack directory (which
+# holds .env and secrets/). Register it to this repo only. Only deploy.yml may target its label, and
+# deploy.yml runs on push to main or by hand, never on a pull request. Registration needs a
+# one-time token (runner.env, mode 600, never committed; *.env is in .gitignore):
+#
+#   gh api -X POST repos/doodlemania2/documenso/actions/runners/registration-token -q .token
+#   ssh derek@doodlessd "cd documenso-deploy-runner && printf 'RUNNER_TOKEN=%s\n' <token> > runner.env && chmod 600 runner.env"
+#   ssh derek@doodlessd "cd documenso-deploy-runner && docker compose up -d"
+name: documenso-deploy-runner
+
+services:
+  documenso-deploy-runner:
+    image: myoung34/github-runner:2.338.0
+    container_name: documenso-deploy-runner
+    restart: unless-stopped
+    env_file: [runner.env]
+    environment:
+      REPO_URL: https://github.com/doodlemania2/documenso
+      RUNNER_SCOPE: repo
+      RUNNER_NAME: doodlessd-documenso-deploy
+      LABELS: doodlessd-documenso-deploy
+      RUNNER_WORKDIR: /home/derek/documenso-stack/_work
+      CONFIGURED_ACTIONS_RUNNER_FILES_DIR: /runner/data
+      DISABLE_AUTOMATIC_DEREGISTRATION: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Same path inside and out: compose hands ./ bind mounts to the host daemon, which needs host paths.
+      - /home/derek/documenso-stack:/home/derek/documenso-stack
+      - documenso-deploy-runner-data:/runner/data
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "1.0" }
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  documenso-deploy-runner-data:

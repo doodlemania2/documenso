@@ -16,5 +16,13 @@ Repo specifics:
 - Rules: `scripts/signoz/alert_rules.py`. Apply: `scripts/signoz/apply_alert_rules.py` (`--check` runs
   every query against real data, `--apply` writes). It defaults to channel `ntfy-tdpdf` and exits
   loudly if that channel is missing. Tests: `python3 -m unittest discover -s tests/signoz -v`.
-- There are no GitHub workflows here. If one is added, notify failures with the `NTFY_URL` secret
-  (plain-text POST with Title/Priority/Tags, `|| true` so a failed notice never fails the job).
+- CI is in `.github/workflows/`. `ci.yml` runs on every PR and on push to main, on GitHub-hosted
+  runners. Five checks are required by branch protection on main: `shellcheck`, `patches`,
+  `compose`, `python`, `secrets`. Rename a job only together with the protection rule.
+  `image-build.yml` runs `PUSH=0 fork/build.sh` by hand or weekly, on the doodlemanage runner
+  (label `doodlemanage-documenso-build`, repo variable `BUILD_RUNNER`, compose file in
+  `deploy/doodlemanage/`). Never add a `pull_request` trigger to it: the runner holds the Docker socket.
+- Both workflows post failures to ntfy with the `NTFY_URL` secret (plain-text POST with
+  Title/Priority/Tags, `|| true`). Any new workflow must do the same.
+- Main is protected: a PR is required, the five checks must pass, the branch must be up to date,
+  no force push, no deletion. Admin enforcement is OFF so Derek can merge in an emergency.

@@ -1,0 +1,43 @@
+# The BUILD runner for this repo, on doodlemanage. It runs .github/workflows/image-build.yml.
+#
+# Docker builds run on doodlemanage, never on doodlessd. Same pattern as the churchapp-site and
+# antiphona-site build runners. Lives at /home/derek/documenso-build-runner/docker-compose.yml.
+# One container is one runner and takes one job at a time. The label is
+# doodlemanage-documenso-build. The repo variable BUILD_RUNNER holds the label.
+#
+# It holds the Docker socket, which is root on this host. Register it to this repo only, and never
+# add a pull_request trigger to a workflow that uses it. Registration needs a one-time token
+# (runner.env, mode 600, never committed; *.env is in .gitignore). After that the config persists
+# in the volume, so no PAT is stored on the host.
+#
+#   gh api -X POST repos/doodlemania2/documenso/actions/runners/registration-token -q .token
+#   ssh derek@doodlemanage "cd documenso-build-runner && printf 'RUNNER_TOKEN=%s\n' <token> > runner.env && chmod 600 runner.env"
+#   ssh derek@doodlemanage "cd documenso-build-runner && docker compose up -d"
+name: documenso-build
+
+services:
+  build-runner:
+    image: myoung34/github-runner:2.338.0
+    container_name: documenso-build-runner
+    restart: unless-stopped
+    env_file: [runner.env]
+    environment:
+      REPO_URL: https://github.com/doodlemania2/documenso
+      RUNNER_SCOPE: repo
+      RUNNER_NAME: doodlemanage-documenso-build
+      LABELS: doodlemanage-documenso-build
+      RUNNER_WORKDIR: /tmp/runner/work
+      CONFIGURED_ACTIONS_RUNNER_FILES_DIR: /runner/data
+      DISABLE_AUTOMATIC_DEREGISTRATION: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - documenso-build-runner-data:/runner/data
+    security_opt: ["no-new-privileges:true"]
+    cpus: 4
+    mem_limit: 6g
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  documenso-build-runner-data:

@@ -1,0 +1,136 @@
+# CI for the fork. Five checks, each one required on main (branch protection).
+# They run on GitHub-hosted runners and never build the image: a full image build takes about
+# 30 minutes and runs on doodlemanage (see image-build.yml).
+#
+# The job names below are the check names that branch protection requires.
+# Rename a job and you must change the protection rule in the same step.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+  # From gitleaks_8.30.1_checksums.txt in the release. A new version needs a new checksum.
+  GITLEAKS_SHA256_LINUX_X64: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: shellcheck every tracked *.sh in fork/, backup/ and scripts/
+        run: |
+          git ls-files -z 'fork/*.sh' 'backup/*.sh' 'scripts/*.sh' \
+            | xargs -0 -r shellcheck --external-sources --format=gcc
+          echo "shellcheck: clean"
+
+  patches:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check patch checksums
+        run: cd fork/patches && sha256sum --check --strict SHA256SUMS
+      - name: Apply the patches to the pinned upstream, in order
+        run: |
+          set -euo pipefail
+          # shellcheck source=fork/pins.env
+          source fork/pins.env
+          : "${UPSTREAM_REPO:?}" "${UPSTREAM_TAG:?}" "${UPSTREAM_COMMIT:?}"
+          src="$RUNNER_TEMP/upstream"
+          git clone --quiet --depth 1 --branch "$UPSTREAM_TAG" "$UPSTREAM_REPO" "$src"
+          actual="$(git -C "$src" rev-parse HEAD)"
+          if [[ "$actual" != "$UPSTREAM_COMMIT" ]]; then
+            echo "::error::$UPSTREAM_TAG resolves to $actual, expected $UPSTREAM_COMMIT"
+            exit 1
+          fi
+          # Same order as fork/build.sh: apply each patch before the next check,
+          # because later patches build on earlier ones.
+          for patch in "$GITHUB_WORKSPACE"/fork/patches/*.patch; do
+            echo "==> $(basename "$patch")"
+            git -C "$src" apply --check "$patch"
+            git -C "$src" apply "$patch"
+          done
+
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Use the placeholder env file
+        # The compose files read deploy/.env. CI uses the committed placeholders only.
+        run: cp deploy/.env.example deploy/.env
+      - name: Validate the base stack
+        run: docker compose -f deploy/docker-compose.yml config -q
+      - name: Validate the Key Vault overlay
+        run: docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.azure-kv.yml config -q
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run the SigNoz rule tests
+        run: python3 -m unittest discover -s tests/signoz -v
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans the whole history
+      - name: Fail on a committed .env file
+        run: |
+          # fork/pins.env is the one allowed .env: build pins only, no secrets (see .gitignore).
+          bad="$(git ls-files | grep -E '(^|/)(\.env(\..*)?|[^/]*\.env)$' | grep -v -E '\.example$|^fork/pins\.env$' || true)"
+          if [[ -n "$bad" ]]; then
+            echo "::error::Committed env file(s) that are not .example files:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "no committed .env files"
+      - name: Install gitleaks (pinned, checksum checked)
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256_LINUX_X64}  $RUNNER_TEMP/$tarball" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan the history and the tree
+        # --redact: a finding never prints the secret value into the public log.
+        run: |
+          "$RUNNER_TEMP/gitleaks" git . --no-banner --redact
+          "$RUNNER_TEMP/gitleaks" dir . --no-banner --redact
+
+  notify-failure:
+    needs: [shellcheck, patches, compose, python, secrets]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post a failure notice to ntfy
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REF: ${{ github.head_ref || github.ref_name }}
+        # A failed notice must never fail the job, and the URL is a secret: no echo, no curl stderr.
+        run: |
+          curl -fsS -m 20 -X POST \
+            -H "Title: documenso CI failed" \
+            -H "Priority: high" \
+            -H "Tags: rotating_light" \
+            -d "ci failed on ${REF}. ${RUN_URL}" \
+            "$NTFY_URL" >/dev/null 2>&1 || true

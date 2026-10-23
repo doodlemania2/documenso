@@ -22,6 +22,23 @@ your own copy.
 | [`backup/`](backup/) | Whole-host backups with restic, including a restore rehearsal that proves the backups actually restore. See [`backup/README.md`](backup/README.md). |
 | [`LICENSE`](LICENSE), [`CHANGES.md`](CHANGES.md) | Documenso's AGPL-3.0 licence, unmodified, and the record of what we changed. |
 
+## Checks on every change
+
+Main is protected. A change needs a pull request, and these five checks from
+[`ci.yml`](.github/workflows/ci.yml) must pass:
+
+| Check | What it proves |
+|---|---|
+| `shellcheck` | Every `*.sh` in `fork/`, `backup/` and `scripts/` is clean. |
+| `patches` | `SHA256SUMS` matches, the upstream tag still points to the pinned commit, and every patch applies in order. |
+| `compose` | Both compose setups (base, and base plus the Key Vault overlay) are valid, with placeholder values. |
+| `python` | The SigNoz alert-rule tests pass. |
+| `secrets` | gitleaks finds nothing in the history or tree, and no `.env` file is committed. |
+
+The full image build takes about 30 minutes, so it is not a PR check.
+[`image-build.yml`](.github/workflows/image-build.yml) runs `PUSH=0 fork/build.sh` by hand or every
+week, on a runner on doodlemanage. It does not push. A failed run sends a notice to ntfy.
+
 ## Signing with Azure Key Vault
 
 Documenso ships signing transports for a local `.p12` file, Google Cloud HSM, and CSC providers.

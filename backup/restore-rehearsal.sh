@@ -197,8 +197,8 @@ print(hosts)
 " "$NPM_DB" 2>&1); then
     integ=$(printf '%s' "$result" | sed -n 1p)
     hosts=$(printf '%s' "$result" | sed -n 2p)
-    [[ "$integ" == "ok" ]] && ok "NPM database integrity_check: ok" || bad "NPM database integrity_check: $integ"
-    [[ "$hosts" -gt 0 ]] 2>/dev/null && ok "NPM has ${hosts} live proxy host(s)" || bad "NPM proxy_host table is empty"
+    if [[ "$integ" == "ok" ]]; then ok "NPM database integrity_check: ok"; else bad "NPM database integrity_check: $integ"; fi
+    if [[ "$hosts" -gt 0 ]] 2>/dev/null; then ok "NPM has ${hosts} live proxy host(s)"; else bad "NPM proxy_host table is empty"; fi
   else
     bad "NPM database unreadable: $result"
   fi
@@ -208,8 +208,11 @@ fi
 
 # keys.json holds the key NPM uses for its own encrypted columns. The SQLite
 # file without it is not a usable restore.
-[[ -s "${WORK_DIR}/data/compose/27/data/keys.json" ]] \
-  && ok "NPM keys.json restored" || bad "NPM keys.json missing"
+if [[ -s "${WORK_DIR}/data/compose/27/data/keys.json" ]]; then
+  ok "NPM keys.json restored"
+else
+  bad "NPM keys.json missing"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Certificates and stack configs
@@ -225,7 +228,7 @@ for f in \
   "${WORK_DIR}/home/derek/npm-stack/docker-compose.yml" \
   "${WORK_DIR}/home/derek/docs-stack/docker-compose.yml"
 do
-  [[ -s "$f" ]] && ok "restored ${f#"$WORK_DIR"}" || bad "missing ${f#"$WORK_DIR"}"
+  if [[ -s "$f" ]]; then ok "restored ${f#"$WORK_DIR"}"; else bad "missing ${f#"$WORK_DIR"}"; fi
 done
 
 # The Documenso stack only exists after the cutover; report it, do not fail on

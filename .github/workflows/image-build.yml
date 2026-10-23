@@ -1,0 +1,46 @@
+# Proves the pinned image build still works. It builds and does not push.
+# Runs only by hand or on a weekly schedule, never on a PR. A build takes about 30 minutes.
+#
+# The runner is a container on doodlemanage (deploy/doodlemanage/docker-compose.yml). Docker
+# builds run on doodlemanage, never on doodlessd. The repo variable BUILD_RUNNER holds the label.
+# Do not add a pull_request trigger: this runner holds the Docker socket, and this repo is public.
+name: image-build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays 05:17 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ${{ vars.BUILD_RUNNER }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the pinned image (no push)
+        run: PUSH=0 fork/build.sh
+
+  notify-failure:
+    needs: [build]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post a failure notice to ntfy
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -fsS -m 20 -X POST \
+            -H "Title: documenso image build failed" \
+            -H "Priority: high" \
+            -H "Tags: rotating_light" \
+            -d "image-build failed. ${RUN_URL}" \
+            "$NTFY_URL" >/dev/null 2>&1 || true

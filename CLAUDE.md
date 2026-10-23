@@ -26,3 +26,11 @@ Repo specifics:
   Title/Priority/Tags, `|| true`). Any new workflow must do the same.
 - Main is protected: a PR is required, the five checks must pass, the branch must be up to date,
   no force push, no deletion. Admin enforcement is OFF so Derek can merge in an emergency.
+- `deploy.yml` builds, pins and deploys on a merge to main that changes `fork/pins.env`,
+  `fork/build.sh`, `fork/patches/` or `deploy/docker-compose*.yml`. Build runs on doodlemanage, deploy
+  on the doodlessd runner (label `doodlessd-documenso-deploy`, compose file in `deploy/doodlessd/`).
+  `deploy/docker-compose.image.yml` is written by the workflow (a bot PR); never edit it by hand.
+  `deploy.sh` refuses a downgrade, dumps the database first, and rolls back on a failed health check.
+  Needs secrets `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `NTFY_URL`.
+- The stack on doodlessd runs three compose files, in this order: `docker-compose.yml`,
+  `docker-compose.azure-kv.yml`, `docker-compose.image.yml`.

@@ -39,6 +39,23 @@ The full image build takes about 30 minutes, so it is not a PR check.
 [`image-build.yml`](.github/workflows/image-build.yml) runs `PUSH=0 fork/build.sh` by hand or every
 week, on a runner on doodlemanage. It does not push. A failed run sends a notice to ntfy.
 
+## Deploy on merge
+
+A merge to main that changes the image inputs (`fork/pins.env`, `fork/build.sh`, `fork/patches/`)
+deploys itself. [`deploy.yml`](.github/workflows/deploy.yml) does four things:
+
+1. **Build** the image on doodlemanage and push it to the internal registry.
+2. **Pin** it by digest. A bot PR rewrites `deploy/docker-compose.image.yml`, the five checks run on
+   it, and it merges itself.
+3. **Deploy** on doodlessd with [`deploy/doodlessd/deploy.sh`](deploy/doodlessd/deploy.sh). The runner
+   on doodlessd makes only outbound connections.
+4. **Roll back** if the app is not healthy in time. Before the switch, the script dumps the database
+   to `predeploy/` in the stack directory. It refuses to deploy an older version than the one running.
+
+A rollback restores the old image. It does not undo migrations. If the schema changed, restore the
+dump first. A change to `deploy/docker-compose*.yml` alone deploys without a build. A failure or a
+rollback sends a notice to ntfy. To deploy by hand, run the workflow with `mode: deploy` or `build`.
+
 ## Signing with Azure Key Vault
 
 Documenso ships signing transports for a local `.p12` file, Google Cloud HSM, and CSC providers.

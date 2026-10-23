@@ -179,7 +179,7 @@ never creates anything.
 
 ```bash
 source ~/.nvm/nvm.sh && nvm use 24          # upstream requires Node >= 24
-git clone --depth 1 --branch v2.18.0 https://github.com/documenso/documenso.git fork/upstream
+git clone --depth 1 --branch v2.21.1 https://github.com/documenso/documenso.git fork/upstream
 cd fork/upstream
 git apply ../patches/*.patch
 npm ci

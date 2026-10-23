@@ -1,5 +1,5 @@
 diff --git a/packages/lib/jobs/definitions/internal/seal-document.handler.ts b/packages/lib/jobs/definitions/internal/seal-document.handler.ts
-index 49758b3..efbd2e4 100644
+index 49758b323..efbd2e48a 100644
 --- a/packages/lib/jobs/definitions/internal/seal-document.handler.ts
 +++ b/packages/lib/jobs/definitions/internal/seal-document.handler.ts
 @@ -20,6 +20,7 @@ import { getCertificatePdf } from '../../../server-only/htmltopdf/get-certificat
@@ -64,7 +64,7 @@ index 49758b3..efbd2e4 100644
    }
  
 diff --git a/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts b/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
-index ad44652..9a4264d 100644
+index ad4465229..9a4264d5d 100644
 --- a/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
 +++ b/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
 @@ -3,6 +3,7 @@ import { PDF } from '@libpdf/core';
@@ -125,7 +125,7 @@ index ad44652..9a4264d 100644
    pdfDoc.flattenAll();
 diff --git a/packages/lib/server-only/pdf/page-overlay-placement.test.ts b/packages/lib/server-only/pdf/page-overlay-placement.test.ts
 new file mode 100644
-index 0000000..c7d13dd
+index 000000000..c7d13dd3a
 --- /dev/null
 +++ b/packages/lib/server-only/pdf/page-overlay-placement.test.ts
 @@ -0,0 +1,257 @@
@@ -388,7 +388,7 @@ index 0000000..c7d13dd
 +});
 diff --git a/packages/lib/server-only/pdf/page-overlay-placement.ts b/packages/lib/server-only/pdf/page-overlay-placement.ts
 new file mode 100644
-index 0000000..e7e33a2
+index 000000000..e7e33a2fd
 --- /dev/null
 +++ b/packages/lib/server-only/pdf/page-overlay-placement.ts
 @@ -0,0 +1,189 @@

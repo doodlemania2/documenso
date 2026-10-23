@@ -1,5 +1,5 @@
 diff --git a/.env.example b/.env.example
-index 5f3da7c..b44bd56 100644
+index 8a48e248c..e9611a940 100644
 --- a/.env.example
 +++ b/.env.example
 @@ -48,7 +48,7 @@ NEXT_PRIVATE_DATABASE_URL="postgres://documenso:password@127.0.0.1:54320/documen
@@ -26,7 +26,7 @@ index 5f3da7c..b44bd56 100644
  NEXT_PRIVATE_SIGNING_CSC_PROVIDER_BASE_URL=
  # OPTIONAL: The OAuth client ID registered with the CSC provider for the csc signing transport.
 diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
-index d3cee2f..0b77e44 100644
+index feeae8349..9db61e0ab 100644
 --- a/ARCHITECTURE.md
 +++ b/ARCHITECTURE.md
 @@ -206,6 +206,7 @@ Cryptographically signs PDF documents.
@@ -38,7 +38,7 @@ index d3cee2f..0b77e44 100644
  **Config**: `NEXT_PRIVATE_SIGNING_TRANSPORT`
  
 diff --git a/apps/docs/content/docs/self-hosting/configuration/environment.mdx b/apps/docs/content/docs/self-hosting/configuration/environment.mdx
-index bc4acd1..13723e5 100644
+index bc4acd1a6..13723e5a5 100644
 --- a/apps/docs/content/docs/self-hosting/configuration/environment.mdx
 +++ b/apps/docs/content/docs/self-hosting/configuration/environment.mdx
 @@ -203,7 +203,7 @@ Documenso requires a certificate to digitally sign documents.
@@ -52,7 +52,7 @@ index bc4acd1..13723e5 100644
  
 diff --git a/apps/docs/content/docs/self-hosting/configuration/signing-certificate/azure-key-vault.mdx b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/azure-key-vault.mdx
 new file mode 100644
-index 0000000..4aec61d
+index 000000000..4aec61d3e
 --- /dev/null
 +++ b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/azure-key-vault.mdx
 @@ -0,0 +1,81 @@
@@ -138,7 +138,7 @@ index 0000000..4aec61d
 +
 +Configure a [timestamp server](/docs/self-hosting/configuration/signing-certificate/timestamp-server). Without one, signatures stop validating when the signing certificate expires.
 diff --git a/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json
-index b52f83f..342f4ac 100644
+index b52f83f9e..342f4acb7 100644
 --- a/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json
 +++ b/apps/docs/content/docs/self-hosting/configuration/signing-certificate/meta.json
 @@ -1,4 +1,4 @@
@@ -148,42 +148,10 @@ index b52f83f..342f4ac 100644
 +  "pages": ["...index", "local", "google-cloud-hsm", "azure-key-vault", "csc-qes", "timestamp-server", "troubleshooting"]
  }
 diff --git a/package-lock.json b/package-lock.json
-index 2e3d9c1..68ca03a 100644
+index b999c2bf5..39e377337 100644
 --- a/package-lock.json
 +++ b/package-lock.json
-@@ -276,31 +276,6 @@
-       "dev": true,
-       "license": "MIT"
-     },
--    "apps/documentation": {
--      "name": "@documenso/documentation",
--      "version": "0.1.0",
--      "extraneous": true,
--      "dependencies": {
--        "@documenso/assets": "*",
--        "@documenso/lib": "*",
--        "@documenso/tailwind-config": "*",
--        "@documenso/trpc": "*",
--        "@documenso/ui": "*",
--        "next": "15.5.12",
--        "next-plausible": "^3.12.5",
--        "nextra": "^3",
--        "nextra-theme-docs": "^3",
--        "react": "^18",
--        "react-dom": "^18"
--      },
--      "devDependencies": {
--        "@types/node": "^20",
--        "@types/react": "18.3.27",
--        "@types/react-dom": "^18",
--        "pagefind": "^1.2.0",
--        "typescript": "5.6.2"
--      }
--    },
-     "apps/openpage-api": {
-       "name": "@documenso/openpage-api",
-       "version": "1.0.0",
-@@ -2168,6 +2143,55 @@
+@@ -1442,6 +1442,23 @@
          "node": ">=18.0.0"
        }
      },
@@ -204,42 +172,10 @@ index 2e3d9c1..68ca03a 100644
 +        "node": ">=22.0.0"
 +      }
 +    },
-+    "node_modules/@azure-rest/core-client/node_modules/@azure/core-rest-pipeline": {
-+      "version": "1.25.0",
-+      "resolved": "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.25.0.tgz",
-+      "integrity": "sha512-bMs8ekJLjX8wPV+9IPBges1SLPyuDtE9g5gLDWOpxzKcoOFQnpLGkbcT1tdw3FaAmDS1gnPmMmJ6y/T5B96kIA==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@azure/abort-controller": "^2.1.2",
-+        "@azure/core-auth": "^1.10.0",
-+        "@azure/core-tracing": "^1.3.0",
-+        "@azure/core-util": "^1.13.0",
-+        "@azure/logger": "^1.3.0",
-+        "@typespec/ts-http-runtime": "^0.3.4",
-+        "tslib": "^2.6.2"
-+      },
-+      "engines": {
-+        "node": ">=22.0.0"
-+      }
-+    },
-+    "node_modules/@azure-rest/core-client/node_modules/@typespec/ts-http-runtime": {
-+      "version": "0.3.9",
-+      "resolved": "https://registry.npmjs.org/@typespec/ts-http-runtime/-/ts-http-runtime-0.3.9.tgz",
-+      "integrity": "sha512-edSdeAqkdxBVzA1yL1LrLCml1YjyCVvPMtMqJpbF+6K609tHe8V6sQUzFQSGcYNhcuhOceZtjvN32+mpIth30A==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "http-proxy-agent": "^7.0.0",
-+        "https-proxy-agent": "^7.0.0",
-+        "tslib": "^2.6.2"
-+      },
-+      "engines": {
-+        "node": ">=22.0.0"
-+      }
-+    },
      "node_modules/@azure/abort-controller": {
        "version": "2.1.2",
        "resolved": "https://registry.npmjs.org/@azure/abort-controller/-/abort-controller-2.1.2.tgz",
-@@ -2255,6 +2279,15 @@
+@@ -1529,10 +1546,19 @@
          "node": ">=18.0.0"
        }
      },
@@ -253,9 +189,25 @@ index 2e3d9c1..68ca03a 100644
 +      }
 +    },
      "node_modules/@azure/core-rest-pipeline": {
-       "version": "1.23.0",
-       "resolved": "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.23.0.tgz",
-@@ -2312,6 +2345,88 @@
+-      "version": "1.23.0",
+-      "resolved": "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.23.0.tgz",
+-      "integrity": "sha512-Evs1INHo+jUjwHi1T6SG6Ua/LHOQBCLuKEEE6efIpt4ZOoNonaT1kP32GoOcdNDbfqsD2445CPri3MubBy5DEQ==",
++      "version": "1.25.0",
++      "resolved": "https://registry.npmjs.org/@azure/core-rest-pipeline/-/core-rest-pipeline-1.25.0.tgz",
++      "integrity": "sha512-bMs8ekJLjX8wPV+9IPBges1SLPyuDtE9g5gLDWOpxzKcoOFQnpLGkbcT1tdw3FaAmDS1gnPmMmJ6y/T5B96kIA==",
+       "license": "MIT",
+       "dependencies": {
+         "@azure/abort-controller": "^2.1.2",
+@@ -1544,7 +1570,7 @@
+         "tslib": "^2.6.2"
+       },
+       "engines": {
+-        "node": ">=20.0.0"
++        "node": ">=22.0.0"
+       }
+     },
+     "node_modules/@azure/core-tracing": {
+@@ -1586,6 +1612,88 @@
          "node": ">=20.0.0"
        }
      },
@@ -344,14 +296,14 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/@azure/logger": {
        "version": "1.3.0",
        "resolved": "https://registry.npmjs.org/@azure/logger/-/logger-1.3.0.tgz",
-@@ -2325,6 +2440,49 @@
+@@ -1599,6 +1707,49 @@
          "node": ">=20.0.0"
        }
      },
 +    "node_modules/@azure/msal-browser": {
-+      "version": "5.24.0",
-+      "resolved": "https://registry.npmjs.org/@azure/msal-browser/-/msal-browser-5.24.0.tgz",
-+      "integrity": "sha512-jS1stt81tslcVZi7fqVD+g6vr8w/IWqFl/vAB2dx/6EOroQDuCR4+z0o3C+d6a/GpLATvdoO+kwnDcYzsBXKQA==",
++      "version": "5.25.1",
++      "resolved": "https://registry.npmjs.org/@azure/msal-browser/-/msal-browser-5.25.1.tgz",
++      "integrity": "sha512-NDW2/bz2Pz71EJAlhSw+jg1kpRIWtrzj0gCzcHuG1u7iLvSOHpUc5lICkDA9x0bbeityxTneiunSBluvS+/y4w==",
 +      "license": "MIT",
 +      "dependencies": {
 +        "@azure/msal-common": "16.14.2"
@@ -394,7 +346,29 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/@azure/storage-blob": {
        "version": "12.31.0",
        "resolved": "https://registry.npmjs.org/@azure/storage-blob/-/storage-blob-12.31.0.tgz",
-@@ -15987,6 +16145,21 @@
+@@ -14674,9 +14825,9 @@
+       "license": "MIT"
+     },
+     "node_modules/@typespec/ts-http-runtime": {
+-      "version": "0.3.5",
+-      "resolved": "https://registry.npmjs.org/@typespec/ts-http-runtime/-/ts-http-runtime-0.3.5.tgz",
+-      "integrity": "sha512-yURCknZhvywvQItHMMmFSo+fq5arCUIyz/CVk7jD89MSai7dkaX8ufjCWp3NttLojoTVbcE72ri+be/TnEbMHw==",
++      "version": "0.3.9",
++      "resolved": "https://registry.npmjs.org/@typespec/ts-http-runtime/-/ts-http-runtime-0.3.9.tgz",
++      "integrity": "sha512-edSdeAqkdxBVzA1yL1LrLCml1YjyCVvPMtMqJpbF+6K609tHe8V6sQUzFQSGcYNhcuhOceZtjvN32+mpIth30A==",
+       "license": "MIT",
+       "dependencies": {
+         "http-proxy-agent": "^7.0.0",
+@@ -14684,7 +14835,7 @@
+         "tslib": "^2.6.2"
+       },
+       "engines": {
+-        "node": ">=20.0.0"
++        "node": ">=22.0.0"
+       }
+     },
+     "node_modules/@ungap/structured-clone": {
+@@ -15867,6 +16018,21 @@
          "node": ">=12.0.0"
        }
      },
@@ -416,7 +390,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/bytes": {
        "version": "3.1.2",
        "resolved": "https://registry.npmjs.org/bytes/-/bytes-3.1.2.tgz",
-@@ -17975,6 +18148,34 @@
+@@ -17859,6 +18025,34 @@
          "node": ">=16.0.0"
        }
      },
@@ -451,7 +425,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/defaults": {
        "version": "1.0.4",
        "resolved": "https://registry.npmjs.org/defaults/-/defaults-1.0.4.tgz",
-@@ -18005,6 +18206,18 @@
+@@ -17889,6 +18083,18 @@
          "url": "https://github.com/sponsors/ljharb"
        }
      },
@@ -470,7 +444,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/defu": {
        "version": "6.1.7",
        "resolved": "https://registry.npmjs.org/defu/-/defu-6.1.7.tgz",
-@@ -21622,6 +21835,21 @@
+@@ -21050,6 +21256,21 @@
          "url": "https://github.com/sponsors/wooorm"
        }
      },
@@ -492,7 +466,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/is-extglob": {
        "version": "2.1.1",
        "resolved": "https://registry.npmjs.org/is-extglob/-/is-extglob-2.1.1.tgz",
-@@ -21669,6 +21897,24 @@
+@@ -21097,6 +21318,24 @@
          "url": "https://github.com/sponsors/wooorm"
        }
      },
@@ -517,7 +491,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/is-interactive": {
        "version": "1.0.0",
        "resolved": "https://registry.npmjs.org/is-interactive/-/is-interactive-1.0.0.tgz",
-@@ -21790,6 +22036,21 @@
+@@ -21218,6 +21457,21 @@
          "url": "https://github.com/sponsors/mesqueeb"
        }
      },
@@ -539,7 +513,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/isarray": {
        "version": "2.0.5",
        "resolved": "https://registry.npmjs.org/isarray/-/isarray-2.0.5.tgz",
-@@ -22139,6 +22400,28 @@
+@@ -21567,6 +21821,28 @@
          "node": "*"
        }
      },
@@ -568,7 +542,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/jwa": {
        "version": "2.0.1",
        "resolved": "https://registry.npmjs.org/jwa/-/jwa-2.0.1.tgz",
-@@ -22786,17 +23069,46 @@
+@@ -22213,17 +22489,46 @@
        "deprecated": "This package is deprecated. Use the optional chaining (?.) operator instead.",
        "license": "MIT"
      },
@@ -616,7 +590,7 @@ index 2e3d9c1..68ca03a 100644
        "license": "MIT"
      },
      "node_modules/lodash.kebabcase": {
-@@ -22820,6 +23132,12 @@
+@@ -22247,6 +22552,12 @@
        "dev": true,
        "license": "MIT"
      },
@@ -629,7 +603,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/lodash.snakecase": {
        "version": "4.1.1",
        "resolved": "https://registry.npmjs.org/lodash.snakecase/-/lodash.snakecase-4.1.1.tgz",
-@@ -28073,6 +28391,18 @@
+@@ -27510,6 +27821,18 @@
          "points-on-path": "^0.2.1"
        }
      },
@@ -648,7 +622,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/run-parallel": {
        "version": "1.2.0",
        "resolved": "https://registry.npmjs.org/run-parallel/-/run-parallel-1.2.0.tgz",
-@@ -31453,6 +31783,21 @@
+@@ -30381,6 +30704,21 @@
          }
        }
      },
@@ -670,49 +644,7 @@ index 2e3d9c1..68ca03a 100644
      "node_modules/xml-naming": {
        "version": "0.1.0",
        "resolved": "https://registry.npmjs.org/xml-naming/-/xml-naming-0.1.0.tgz",
-@@ -32311,22 +32656,6 @@
-         "@types/nodemailer": "^8.0.1"
-       }
-     },
--    "packages/eslint-config": {
--      "name": "@documenso/eslint-config",
--      "version": "0.0.0",
--      "extraneous": true,
--      "license": "MIT",
--      "dependencies": {
--        "@typescript-eslint/eslint-plugin": "^7.18.0",
--        "@typescript-eslint/parser": "^7.18.0",
--        "eslint": "^8.57.0",
--        "eslint-config-turbo": "^1.13.4",
--        "eslint-plugin-package-json": "^0.85.0",
--        "eslint-plugin-react": "^7.37.5",
--        "eslint-plugin-unused-imports": "^4.3.0",
--        "typescript": "5.6.2"
--      }
--    },
-     "packages/lib": {
-       "name": "@documenso/lib",
-       "version": "0.0.0",
-@@ -32409,18 +32738,6 @@
-         "node": ">=4"
-       }
-     },
--    "packages/prettier-config": {
--      "name": "@documenso/prettier-config",
--      "version": "0.0.0",
--      "extraneous": true,
--      "license": "MIT",
--      "dependencies": {
--        "@trivago/prettier-plugin-sort-imports": "^4.3.0",
--        "prettier": "^3.6.2",
--        "prettier-plugin-tailwindcss": "^0.7.1"
--      },
--      "devDependencies": {}
--    },
-     "packages/prisma": {
-       "name": "@documenso/prisma",
-       "version": "0.0.0",
-@@ -32952,12 +33269,16 @@
+@@ -30846,12 +31184,16 @@
        "version": "0.0.0",
        "license": "AGPLv3",
        "dependencies": {
@@ -731,7 +663,7 @@ index 2e3d9c1..68ca03a 100644
      },
      "packages/tailwind-config": {
 diff --git a/packages/lib/server-only/cert/cert-status.ts b/packages/lib/server-only/cert/cert-status.ts
-index a3c0fd2..eaf6734 100644
+index a3c0fd222..eaf67343e 100644
 --- a/packages/lib/server-only/cert/cert-status.ts
 +++ b/packages/lib/server-only/cert/cert-status.ts
 @@ -1,5 +1,6 @@
@@ -773,10 +705,10 @@ index a3c0fd2..eaf6734 100644
      const now = new Date();
  
 diff --git a/packages/signing/index.ts b/packages/signing/index.ts
-index acb1c00..42ee201 100644
+index f60b26650..332a949ad 100644
 --- a/packages/signing/index.ts
 +++ b/packages/signing/index.ts
-@@ -8,6 +8,7 @@ import type { PDF, Signer } from '@libpdf/core';
+@@ -9,6 +9,7 @@ import type { PDF, Signer } from '@libpdf/core';
  import { match } from 'ts-pattern';
  
  import { getTimestampAuthority } from './helpers/tsa';
@@ -784,7 +716,7 @@ index acb1c00..42ee201 100644
  import { createGoogleCloudSigner } from './transports/google-cloud';
  import { createLocalSigner } from './transports/local';
  
-@@ -28,6 +29,7 @@ const getSigner = async () => {
+@@ -29,6 +30,7 @@ const getSigner = async () => {
    signer = await match(transport)
      .with('local', async () => await createLocalSigner())
      .with('gcloud-hsm', async () => await createGoogleCloudSigner())
@@ -793,7 +725,7 @@ index acb1c00..42ee201 100644
        throw new Error(`Unsupported signing transport: ${transport}`);
      });
 diff --git a/packages/signing/package.json b/packages/signing/package.json
-index 600a89d..456d362 100644
+index 600a89d56..456d362d0 100644
 --- a/packages/signing/package.json
 +++ b/packages/signing/package.json
 @@ -12,11 +12,15 @@
@@ -815,7 +747,7 @@ index 600a89d..456d362 100644
  }
 diff --git a/packages/signing/transports/azure-key-vault.test.ts b/packages/signing/transports/azure-key-vault.test.ts
 new file mode 100644
-index 0000000..4217c09
+index 000000000..4217c09fc
 --- /dev/null
 +++ b/packages/signing/transports/azure-key-vault.test.ts
 @@ -0,0 +1,186 @@
@@ -1007,7 +939,7 @@ index 0000000..4217c09
 +});
 diff --git a/packages/signing/transports/azure-key-vault.ts b/packages/signing/transports/azure-key-vault.ts
 new file mode 100644
-index 0000000..eb9c409
+index 000000000..eb9c40997
 --- /dev/null
 +++ b/packages/signing/transports/azure-key-vault.ts
 @@ -0,0 +1,203 @@
@@ -1215,10 +1147,10 @@ index 0000000..eb9c409
 +  return await AzureKeyVaultSigner.create(createKeyVaultClient(keyId), loadAzureKeyVaultCertificates());
 +};
 diff --git a/packages/tsconfig/process-env.d.ts b/packages/tsconfig/process-env.d.ts
-index d02df2b..7cef89c 100644
+index 27a0af0fb..b6d097128 100644
 --- a/packages/tsconfig/process-env.d.ts
 +++ b/packages/tsconfig/process-env.d.ts
-@@ -37,7 +37,7 @@ declare namespace NodeJS {
+@@ -46,7 +46,7 @@ declare namespace NodeJS {
      NEXT_PRIVATE_UPLOAD_AZURE_CONTAINER?: string;
      NEXT_PRIVATE_UPLOAD_AZURE_ENDPOINT?: string;
  
@@ -1227,7 +1159,7 @@ index d02df2b..7cef89c 100644
      /**
       * Derived from `NEXT_PRIVATE_SIGNING_TRANSPORT` in `createPublicEnv()`; do
       * not set manually. Lets the client detect CSC mode for authoring UI gating.
-@@ -54,6 +54,9 @@ declare namespace NodeJS {
+@@ -63,6 +63,9 @@ declare namespace NodeJS {
      NEXT_PRIVATE_SIGNING_GCLOUD_HSM_CERT_CHAIN_FILE_PATH?: string;
      NEXT_PRIVATE_SIGNING_GCLOUD_HSM_CERT_CHAIN_CONTENTS?: string;
      NEXT_PRIVATE_SIGNING_GCLOUD_HSM_SECRET_MANAGER_CERT_PATH?: string;

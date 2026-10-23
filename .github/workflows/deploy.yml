@@ -136,7 +136,6 @@ jobs:
           branch="deploy/image-${tag}-${GITHUB_RUN_ID}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
           cat > deploy/docker-compose.image.yml <<YAML
           # Written by .github/workflows/deploy.yml. Do not edit by hand.
           # The image deploy.sh rolls out: registry tag plus digest. The digest is what is pulled;
@@ -147,6 +146,14 @@ jobs:
               image: ${REF}
               pull_policy: missing
           YAML
+          # Same digest as main already pins (a cached rebuild): nothing to deploy, and not a failure.
+          if [[ -z "$(git status --porcelain -- deploy/docker-compose.image.yml)" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "main already pins ${REF}; nothing to do"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git checkout -q -b "$branch"
           git add deploy/docker-compose.image.yml
           git commit -q -m "deploy: pin ${tag} (${REF##*@})"
           git push -q origin "$branch"
@@ -156,6 +163,7 @@ jobs:
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "pr=${url##*/}" >> "$GITHUB_OUTPUT"
       - name: Start the required checks on the PR
+        if: steps.pr.outputs.changed == 'true'
         # A PR opened with GITHUB_TOKEN gets its pull_request run held as action_required (the
         # fork-PR approval policy). Only that run counts as a check on the PR. A run started by
         # workflow_dispatch does not. So approve the held run.
@@ -172,6 +180,7 @@ jobs:
           [[ -n "${run:-}" ]] || { echo "::error::no held ci.yml run found for $BRANCH"; exit 1; }
           gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run}/approve"
       - name: Wait for the checks, merge, start the deploy
+        if: steps.pr.outputs.changed == 'true'
         env:
           PR: ${{ steps.pr.outputs.pr }}
         run: |

@@ -47,3 +47,11 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
   instead of being shown "No team to connect". Never a shared team: with open signup, strangers in
   one team would see each other's documents. Adds tests.
 
+
+## 2026-10-23 — rebased onto v2.21.1 (`8707e33c124e4b1a68dde92d5e05178c9aabd0be`)
+
+- All five patches re-applied to v2.21.1 (from v2.18.0). `0003` (rebrand) needed hand resolution in
+  the two layouts, four email templates and `send-reset-password.ts`, where upstream moved to
+  `getEmailAssetUrl` and added legal links and a subject line; the "View plans" button upstream
+  re-added to the self-signed email stays removed. `package-lock.json` was regenerated for the two
+  Azure SDK dependencies. No behaviour of ours changed.

@@ -1,5 +1,5 @@
 diff --git a/apps/remix/app/components/dialogs/account-delete-dialog.tsx b/apps/remix/app/components/dialogs/account-delete-dialog.tsx
-index d23a0a7..74645ec 100644
+index d23a0a74b..74645ec38 100644
 --- a/apps/remix/app/components/dialogs/account-delete-dialog.tsx
 +++ b/apps/remix/app/components/dialogs/account-delete-dialog.tsx
 @@ -103,8 +103,8 @@ export const AccountDeleteDialog = ({ className }: AccountDeleteDialogProps) =>
@@ -14,7 +14,7 @@ index d23a0a7..74645ec 100644
                  </DialogDescription>
                </DialogHeader>
 diff --git a/apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx b/apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
-index 0cd5e3c..696866e 100644
+index 0cd5e3c4c..696866e1d 100644
 --- a/apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 +++ b/apps/remix/app/components/dialogs/envelope-distribute-dialog.tsx
 @@ -1,6 +1,7 @@
@@ -35,7 +35,7 @@ index 0cd5e3c..696866e 100644
                                        </Select>
                                      </FormControl>
 diff --git a/apps/remix/app/components/dialogs/token-create-dialog.tsx b/apps/remix/app/components/dialogs/token-create-dialog.tsx
-index 0131638..16c19ff 100644
+index 0131638e2..16c19ff2d 100644
 --- a/apps/remix/app/components/dialogs/token-create-dialog.tsx
 +++ b/apps/remix/app/components/dialogs/token-create-dialog.tsx
 @@ -171,7 +171,7 @@ export const TokenCreateDialog = ({ trigger, ...props }: TokenCreateDialogProps)
@@ -48,7 +48,7 @@ index 0131638..16c19ff 100644
              </DialogHeader>
  
 diff --git a/apps/remix/app/components/dialogs/webhook-create-dialog.tsx b/apps/remix/app/components/dialogs/webhook-create-dialog.tsx
-index 49ecd79..397649d 100644
+index 49ecd7968..397649d13 100644
 --- a/apps/remix/app/components/dialogs/webhook-create-dialog.tsx
 +++ b/apps/remix/app/components/dialogs/webhook-create-dialog.tsx
 @@ -127,7 +127,7 @@ export const WebhookCreateDialog = ({ trigger, ...props }: WebhookCreateDialogPr
@@ -72,7 +72,7 @@ index 49ecd79..397649d 100644
                      </FormDescription>
                      <FormMessage />
 diff --git a/apps/remix/app/components/dialogs/webhook-edit-dialog.tsx b/apps/remix/app/components/dialogs/webhook-edit-dialog.tsx
-index 4b89d10..9f15015 100644
+index 4b89d1025..9f1501579 100644
 --- a/apps/remix/app/components/dialogs/webhook-edit-dialog.tsx
 +++ b/apps/remix/app/components/dialogs/webhook-edit-dialog.tsx
 @@ -111,7 +111,7 @@ export const WebhookEditDialog = ({ trigger, webhook, ...props }: WebhookEditDia
@@ -96,7 +96,7 @@ index 4b89d10..9f15015 100644
                      </FormDescription>
                      <FormMessage />
 diff --git a/apps/remix/app/components/embed/embed-document-completed.tsx b/apps/remix/app/components/embed/embed-document-completed.tsx
-index da11e59..841f749 100644
+index a898e4ee9..480393a80 100644
 --- a/apps/remix/app/components/embed/embed-document-completed.tsx
 +++ b/apps/remix/app/components/embed/embed-document-completed.tsx
 @@ -1,4 +1,5 @@
@@ -105,8 +105,8 @@ index da11e59..841f749 100644
  import { SigningCard3D } from '@documenso/ui/components/signing-card';
  import { Trans } from '@lingui/react/macro';
  import type { Signature } from '@prisma/client';
-@@ -18,7 +19,7 @@ export const EmbedDocumentCompleted = ({ name, signature }: EmbedDocumentComplet
-       <div className="mt-8 w-full max-w-md">
+@@ -15,7 +16,7 @@ export const EmbedDocumentCompleted = ({ name, signature }: EmbedDocumentComplet
+       <div className="embed--DocumentCompletedCard w-full max-w-sm md:max-w-md">
          <SigningCard3D
            className="mx-auto w-full"
 -          name={name || 'Documenso'}
@@ -115,15 +115,15 @@ index da11e59..841f749 100644
            signingCelebrationImage={signingCelebration}
          />
 diff --git a/apps/remix/app/components/general/app-nav-mobile.tsx b/apps/remix/app/components/general/app-nav-mobile.tsx
-index 44f81f6..dad7ca7 100644
+index 76eea8c24..3502e6902 100644
 --- a/apps/remix/app/components/general/app-nav-mobile.tsx
 +++ b/apps/remix/app/components/general/app-nav-mobile.tsx
 @@ -1,4 +1,3 @@
 -import LogoImage from '@documenso/assets/logo.png';
  import { authClient } from '@documenso/auth/client';
+ import { useOptionalCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
  import { useSession } from '@documenso/lib/client-only/providers/session';
- import { trpc } from '@documenso/trpc/react';
-@@ -8,6 +7,8 @@ import { Trans, useLingui } from '@lingui/react/macro';
+@@ -11,6 +10,8 @@ import { Trans, useLingui } from '@lingui/react/macro';
  import { ReadStatus } from '@prisma/client';
  import { useMemo } from 'react';
  import { Link } from 'react-router';
@@ -132,7 +132,7 @@ index 44f81f6..dad7ca7 100644
  
  import { useOptionalCurrentTeam } from '~/providers/team';
  
-@@ -80,7 +81,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
+@@ -90,7 +91,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
      <Sheet open={isMenuOpen} onOpenChange={onMenuOpenChange}>
        <SheetContent className="flex w-full max-w-[350px] flex-col">
          <Link to="/" onClick={handleMenuItemClick}>
@@ -141,7 +141,7 @@ index 44f81f6..dad7ca7 100644
          </Link>
  
          <div className="mt-8 flex w-full flex-col items-start gap-y-4">
-@@ -113,11 +114,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
+@@ -123,11 +124,7 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
              <ThemeSwitcher />
            </div>
  
@@ -155,7 +155,7 @@ index 44f81f6..dad7ca7 100644
        </SheetContent>
      </Sheet>
 diff --git a/apps/remix/app/components/general/branding-logo-icon.tsx b/apps/remix/app/components/general/branding-logo-icon.tsx
-index 3112468..1eb085a 100644
+index 31124684a..1eb085aa9 100644
 --- a/apps/remix/app/components/general/branding-logo-icon.tsx
 +++ b/apps/remix/app/components/general/branding-logo-icon.tsx
 @@ -1,17 +1,27 @@
@@ -196,7 +196,7 @@ index 3112468..1eb085a 100644
    );
  };
 diff --git a/apps/remix/app/components/general/branding-logo.tsx b/apps/remix/app/components/general/branding-logo.tsx
-index 5793212..94896a5 100644
+index 57932129a..94896a54e 100644
 --- a/apps/remix/app/components/general/branding-logo.tsx
 +++ b/apps/remix/app/components/general/branding-logo.tsx
 @@ -1,29 +1,39 @@
@@ -256,7 +256,7 @@ index 5793212..94896a5 100644
      </svg>
    );
 diff --git a/apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx b/apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
-index 46ff0d8..37c529c 100644
+index f2339dfd6..09cfb0aaf 100644
 --- a/apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 +++ b/apps/remix/app/components/general/document-signing/document-signing-page-view-v2.tsx
 @@ -1,4 +1,5 @@
@@ -265,7 +265,7 @@ index 46ff0d8..37c529c 100644
  import { PDF_VIEWER_ERROR_MESSAGES } from '@documenso/lib/constants/pdf-viewer-i18n';
  import { mapSecondaryIdToDocumentId } from '@documenso/lib/utils/envelope';
  import { cn } from '@documenso/ui/lib/utils';
-@@ -283,7 +284,7 @@ export const DocumentSigningPageViewV2 = () => {
+@@ -286,7 +287,7 @@ export const DocumentSigningPageViewV2 = () => {
  
                {!hidePoweredBy && (
                  <a
@@ -275,7 +275,7 @@ index 46ff0d8..37c529c 100644
                    className="fixed right-0 bottom-0 z-40 hidden cursor-pointer rounded-tl bg-primary px-2 py-1 font-medium text-primary-foreground text-xs opacity-60 hover:opacity-100 lg:block"
                    rel="noopener"
 diff --git a/apps/remix/app/components/general/document/document-certificate-qr-view.tsx b/apps/remix/app/components/general/document/document-certificate-qr-view.tsx
-index 8d31345..719e47d 100644
+index 8d31345bf..719e47de6 100644
 --- a/apps/remix/app/components/general/document/document-certificate-qr-view.tsx
 +++ b/apps/remix/app/components/general/document/document-certificate-qr-view.tsx
 @@ -76,8 +76,8 @@ export const DocumentCertificateQRView = ({
@@ -290,7 +290,7 @@ index 8d31345..719e47d 100644
                </DialogDescription>
              </DialogHeader>
 diff --git a/apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx b/apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
-index ea60d18..fd90b3a 100644
+index 1abf0fa54..6264c566a 100644
 --- a/apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
 +++ b/apps/remix/app/components/general/envelope-editor/envelope-editor-settings-dialog.tsx
 @@ -1,5 +1,6 @@
@@ -310,7 +310,7 @@ index ea60d18..fd90b3a 100644
                                  </Select>
                                </FormControl>
 diff --git a/apps/remix/app/components/general/org-menu-switcher.tsx b/apps/remix/app/components/general/org-menu-switcher.tsx
-index dfa52d9..b137dbf 100644
+index 842a801e0..d1315a17d 100644
 --- a/apps/remix/app/components/general/org-menu-switcher.tsx
 +++ b/apps/remix/app/components/general/org-menu-switcher.tsx
 @@ -2,6 +2,7 @@ import { authClient } from '@documenso/auth/client';
@@ -321,7 +321,7 @@ index dfa52d9..b137dbf 100644
  import { EXTENDED_ORGANISATION_MEMBER_ROLE_MAP } from '@documenso/lib/constants/organisations-translations';
  import { EXTENDED_TEAM_MEMBER_ROLE_MAP } from '@documenso/lib/constants/teams-translations';
  import { formatAvatarUrl } from '@documenso/lib/utils/avatars';
-@@ -319,6 +320,12 @@ export const OrgMenuSwitcher = () => {
+@@ -338,6 +339,12 @@ export const OrgMenuSwitcher = () => {
                  </DropdownMenuItem>
                )}
  
@@ -335,7 +335,7 @@ index dfa52d9..b137dbf 100644
                  className="hover:!text-muted-foreground px-4 py-2 text-muted-foreground"
                  onSelect={async () => authClient.signOut()}
 diff --git a/apps/remix/app/components/general/organisations/organisation-billing-banner.tsx b/apps/remix/app/components/general/organisations/organisation-billing-banner.tsx
-index 9bae212..b41c514 100644
+index 9bae2122e..b41c514d1 100644
 --- a/apps/remix/app/components/general/organisations/organisation-billing-banner.tsx
 +++ b/apps/remix/app/components/general/organisations/organisation-billing-banner.tsx
 @@ -128,7 +128,7 @@ export const OrganisationBillingBanner = () => {
@@ -349,7 +349,7 @@ index 9bae212..b41c514 100644
                </DialogHeader>
 diff --git a/apps/remix/app/components/general/site-footer.tsx b/apps/remix/app/components/general/site-footer.tsx
 new file mode 100644
-index 0000000..5333cd0
+index 000000000..5333cd014
 --- /dev/null
 +++ b/apps/remix/app/components/general/site-footer.tsx
 @@ -0,0 +1,40 @@
@@ -394,24 +394,18 @@ index 0000000..5333cd0
 +  );
 +};
 diff --git a/apps/remix/app/routes/_authenticated+/_layout.tsx b/apps/remix/app/routes/_authenticated+/_layout.tsx
-index 9c1054b..7b639d7 100644
+index 1b1be54c5..75dccc178 100644
 --- a/apps/remix/app/routes/_authenticated+/_layout.tsx
 +++ b/apps/remix/app/routes/_authenticated+/_layout.tsx
-@@ -9,12 +9,12 @@ import { Button } from '@documenso/ui/primitives/button';
- import { msg } from '@lingui/core/macro';
- import { Trans } from '@lingui/react/macro';
- import { Link, Outlet, redirect } from 'react-router';
--
- import { AppBanner } from '~/components/general/app-banner';
- import { Header } from '~/components/general/app-header';
+@@ -14,6 +14,7 @@ import { Header } from '~/components/general/app-header';
  import { GenericErrorLayout } from '~/components/general/generic-error-layout';
  import { OrganisationBillingBanner } from '~/components/general/organisations/organisation-billing-banner';
  import { OrganisationQuotaBanner } from '~/components/general/organisations/organisation-quota-banner';
 +import { SiteFooter } from '~/components/general/site-footer';
  import { VerifyEmailBanner } from '~/components/general/verify-email-banner';
+ import { authenticatedMiddleware } from '~/middleware/authenticated';
  import { TeamProvider } from '~/providers/team';
- 
-@@ -130,6 +130,8 @@ export default function Layout({ loaderData, params, matches }: Route.ComponentP
+@@ -127,6 +128,8 @@ export default function Layout({ loaderData, params, matches }: Route.ComponentP
            >
              <Outlet />
            </main>
@@ -421,7 +415,7 @@ index 9c1054b..7b639d7 100644
        </TeamProvider>
      </OrganisationProvider>
 diff --git a/apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx b/apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-index cea48a1..6593a7c 100644
+index cea48a133..6593a7c4f 100644
 --- a/apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
 +++ b/apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
 @@ -1,10 +1,11 @@
@@ -505,7 +499,7 @@ index cea48a1..6593a7c 100644
              </p>
            </div>
 diff --git a/apps/remix/app/routes/_profile+/p.$url.tsx b/apps/remix/app/routes/_profile+/p.$url.tsx
-index 476e714..e8998cb 100644
+index 476e714a3..e8998cb88 100644
 --- a/apps/remix/app/routes/_profile+/p.$url.tsx
 +++ b/apps/remix/app/routes/_profile+/p.$url.tsx
 @@ -128,7 +128,7 @@ export default function PublicProfilePage({ loaderData }: Route.ComponentProps)
@@ -518,7 +512,7 @@ index 476e714..e8998cb 100644
                  </Trans>
                </span>
 diff --git a/apps/remix/app/routes/_recipient+/_layout.tsx b/apps/remix/app/routes/_recipient+/_layout.tsx
-index fde4a79..ebe26d9 100644
+index fde4a7998..ebe26d9d4 100644
 --- a/apps/remix/app/routes/_recipient+/_layout.tsx
 +++ b/apps/remix/app/routes/_recipient+/_layout.tsx
 @@ -14,7 +14,7 @@ import type { Route } from './+types/_layout';
@@ -531,7 +525,7 @@ index fde4a79..ebe26d9 100644
    ];
  }
 diff --git a/apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx b/apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
-index d35313f..9a2069f 100644
+index a03191633..962b94966 100644
 --- a/apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 +++ b/apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 @@ -9,6 +9,7 @@ import { readCscServiceSessionFromRequest } from '@documenso/ee/server-only/sign
@@ -542,7 +536,7 @@ index d35313f..9a2069f 100644
  import { AppError, AppErrorCode } from '@documenso/lib/errors/app-error';
  import { loadRecipientBrandingByTeamId } from '@documenso/lib/server-only/branding/load-recipient-branding';
  import { getDocumentAndSenderByToken } from '@documenso/lib/server-only/document/get-document-by-token';
-@@ -453,9 +454,9 @@ const SigningPageV1 = ({ data }: { data: Awaited<ReturnType<typeof handleV1Loade
+@@ -478,9 +479,9 @@ const SigningPageV1 = ({ data }: { data: Awaited<ReturnType<typeof handleV1Loade
            ) : (
              <p className="mt-36 text-muted-foreground/60 text-sm">
                <Trans>
@@ -555,7 +549,7 @@ index d35313f..9a2069f 100644
                  </Link>
                  .
                </Trans>
-@@ -552,9 +553,9 @@ const SigningPageV2 = ({ data }: { data: Awaited<ReturnType<typeof handleV2Loade
+@@ -578,9 +579,9 @@ const SigningPageV2 = ({ data }: { data: Awaited<ReturnType<typeof handleV2Loade
            ) : (
              <p className="mt-36 text-muted-foreground/60 text-sm">
                <Trans>
@@ -569,7 +563,7 @@ index d35313f..9a2069f 100644
                  .
                </Trans>
 diff --git a/apps/remix/app/routes/_share+/share.$slug.tsx b/apps/remix/app/routes/_share+/share.$slug.tsx
-index 4e8029f..94dd27e 100644
+index 4e8029f73..94dd27e3e 100644
 --- a/apps/remix/app/routes/_share+/share.$slug.tsx
 +++ b/apps/remix/app/routes/_share+/share.$slug.tsx
 @@ -1,4 +1,5 @@
@@ -629,29 +623,28 @@ index 4e8029f..94dd27e 100644
  
  export default function SharePage() {
 diff --git a/apps/remix/app/routes/_unauthenticated+/_layout.tsx b/apps/remix/app/routes/_unauthenticated+/_layout.tsx
-index 1ad6db2..5054cd4 100644
+index dd080fb4b..069a5edf8 100644
 --- a/apps/remix/app/routes/_unauthenticated+/_layout.tsx
 +++ b/apps/remix/app/routes/_unauthenticated+/_layout.tsx
-@@ -1,6 +1,8 @@
- import backgroundPattern from '@documenso/assets/images/background-pattern.png';
+@@ -2,6 +2,7 @@ import backgroundPattern from '@documenso/assets/images/background-pattern.png';
  import { Outlet } from 'react-router';
  
+ import { PublicLegalLinks } from '~/components/general/public-legal-links';
 +import { SiteFooter } from '~/components/general/site-footer';
-+
+ 
  export default function Layout() {
    return (
-     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12 md:p-12 lg:p-24">
-@@ -20,6 +22,8 @@ export default function Layout() {
-         <div className="relative w-full">
+@@ -22,6 +23,8 @@ export default function Layout() {
+         <div className="relative w-full flex items-center justify-center">
            <Outlet />
          </div>
 +
 +        <SiteFooter className="relative mt-12" />
        </div>
-     </main>
-   );
+ 
+       <footer className="z-10 mt-8 w-full">
 diff --git a/apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx b/apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
-index 20490d8..7018941 100644
+index 20490d89d..70189415c 100644
 --- a/apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 +++ b/apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 @@ -16,10 +16,10 @@ export default function SignatureDisclosure() {
@@ -681,10 +674,10 @@ index 20490d8..7018941 100644
            </Trans>
          </p>
 diff --git a/apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx b/apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx
-index 2078d4e..925c343 100644
+index 96c7c13fe..4f8d1ba2e 100644
 --- a/apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx
 +++ b/apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx
-@@ -204,7 +204,7 @@ export default function OrganisationSignIn({ loaderData }: Route.ComponentProps)
+@@ -207,7 +207,7 @@ export default function OrganisationSignIn({ loaderData }: Route.ComponentProps)
  
          <div className="mt-1 flex items-center justify-center text-muted-foreground text-xs">
            <Link to="/signin">
@@ -694,7 +687,7 @@ index 2078d4e..925c343 100644
          </div>
        </div>
 diff --git a/apps/remix/app/routes/_unauthenticated+/organisation.invite.$token.tsx b/apps/remix/app/routes/_unauthenticated+/organisation.invite.$token.tsx
-index 5f6609d..8e2b89e 100644
+index 5f6609d85..8e2b89e54 100644
 --- a/apps/remix/app/routes/_unauthenticated+/organisation.invite.$token.tsx
 +++ b/apps/remix/app/routes/_unauthenticated+/organisation.invite.$token.tsx
 @@ -285,7 +285,7 @@ const PendingInvitation = ({
@@ -707,7 +700,7 @@ index 5f6609d..8e2b89e 100644
          </p>
  
 diff --git a/apps/remix/app/routes/_unauthenticated+/verify-email.$token.tsx b/apps/remix/app/routes/_unauthenticated+/verify-email.$token.tsx
-index ae93fa4..ce0697d 100644
+index ae93fa460..ce0697d04 100644
 --- a/apps/remix/app/routes/_unauthenticated+/verify-email.$token.tsx
 +++ b/apps/remix/app/routes/_unauthenticated+/verify-email.$token.tsx
 @@ -142,7 +142,7 @@ export default function VerifyEmailPage({ loaderData }: Route.ComponentProps) {
@@ -729,7 +722,7 @@ index ae93fa4..ce0697d 100644
  
              <Button className="mt-4" asChild>
 diff --git a/apps/remix/app/utils/meta.ts b/apps/remix/app/utils/meta.ts
-index 6c059b9..3efc42d 100644
+index 6c059b936..3efc42dad 100644
 --- a/apps/remix/app/utils/meta.ts
 +++ b/apps/remix/app/utils/meta.ts
 @@ -1,13 +1,14 @@
@@ -17451,7 +17444,7 @@ z|2zHl&$tK3s8z==JD6K>zij>|_0O?yzuS%P_f7Lj?<+6;x|_FI_0#fbKKSteM*k0t
 C6stl2
 
 diff --git a/apps/remix/public/site.webmanifest b/apps/remix/public/site.webmanifest
-index caaba4e..0f36fbc 100644
+index caaba4ea4..0f36fbcfa 100644
 --- a/apps/remix/public/site.webmanifest
 +++ b/apps/remix/public/site.webmanifest
 @@ -1,6 +1,6 @@
@@ -27536,7 +27529,7 @@ z^JyHzah61}q};P=l9dv~r}cmx7}k5d7|VCZ5T5Sk%IK0Ef&ltBJJ3jJC<lx4Z%yBx
 m+U8u&<y_9?T+ZcRR{k%<n!GMqoyRo*0000<MNUMnLSTY{!PNW!
 
 diff --git a/packages/app-tests/e2e/webhooks/webhooks-crud.spec.ts b/packages/app-tests/e2e/webhooks/webhooks-crud.spec.ts
-index 9f25f71..f28e8e1 100644
+index 9f25f711d..f28e8e120 100644
 --- a/packages/app-tests/e2e/webhooks/webhooks-crud.spec.ts
 +++ b/packages/app-tests/e2e/webhooks/webhooks-crud.spec.ts
 @@ -62,7 +62,7 @@ test('[WEBHOOKS]: create webhook', async ({ page }) => {
@@ -31533,7 +31526,7 @@ z%%EqUL})*AK#5O860q*)j`-Hz9xY}Tk)*6e)^mKm*keOe`ySiV_f%_7Txmm8iT3S9
 u*oLPsPEqdsyTj>M+c5S0>DP0Jg!n%l&RCy~n1qS|0000<MNUMnLSTZeXsEjY
 
 diff --git a/packages/assets/site.webmanifest b/packages/assets/site.webmanifest
-index 3746bdb..e396612 100644
+index 3746bdb41..e396612e8 100644
 --- a/packages/assets/site.webmanifest
 +++ b/packages/assets/site.webmanifest
 @@ -1,6 +1,6 @@
@@ -31555,7 +31548,7 @@ index 3746bdb..e396612 100644
    "display": "standalone"
  }
 diff --git a/packages/email/preview/app/components/playground.tsx b/packages/email/preview/app/components/playground.tsx
-index 6cdbd53..0b3fef7 100644
+index 6cdbd53e2..0b3fef73c 100644
 --- a/packages/email/preview/app/components/playground.tsx
 +++ b/packages/email/preview/app/components/playground.tsx
 @@ -26,8 +26,8 @@ const LANGUAGE_LABELS: Record<string, string> = {
@@ -31882,7 +31875,7 @@ z2^##4Z->j@vRJ89DwPE&47c?7_ZZV}i~4chN~KaMPVQYXOVAh`eZBRpQmIr{<bOBn
 V%E|vP@<IRr002ovPDHLkV1n#J8IJ$}
 
 diff --git a/packages/email/template-components/template-admin-user-created.tsx b/packages/email/template-components/template-admin-user-created.tsx
-index 4f0adf1..428df50 100644
+index 4f0adf100..428df505f 100644
 --- a/packages/email/template-components/template-admin-user-created.tsx
 +++ b/packages/email/template-components/template-admin-user-created.tsx
 @@ -15,11 +15,11 @@ export const TemplateAdminUserCreated = ({ resetPasswordLink, assetBaseUrl }: Te
@@ -31900,10 +31893,10 @@ index 4f0adf1..428df50 100644
  
          <Text className="my-1 text-center text-base text-muted-foreground">
 diff --git a/packages/email/template-components/template-branding-logo.tsx b/packages/email/template-components/template-branding-logo.tsx
-index c7e9968..061fda7 100644
+index 6b560aed2..80ec8ac31 100644
 --- a/packages/email/template-components/template-branding-logo.tsx
 +++ b/packages/email/template-components/template-branding-logo.tsx
-@@ -12,7 +12,7 @@ export type TemplateBrandingLogoProps = {
+@@ -13,7 +13,7 @@ export type TemplateBrandingLogoProps = {
   *
   * - When custom branding is enabled with a logo, the branding logo is shown.
   *   If a safe (http/https) Brand Website is configured, the logo links to it.
@@ -31912,12 +31905,12 @@ index c7e9968..061fda7 100644
   */
  export const TemplateBrandingLogo = ({ assetBaseUrl, className = 'mb-4 h-6' }: TemplateBrandingLogoProps) => {
    const branding = useBranding();
-@@ -20,9 +20,9 @@ export const TemplateBrandingLogo = ({ assetBaseUrl, className = 'mb-4 h-6' }: T
+@@ -21,9 +21,9 @@ export const TemplateBrandingLogo = ({ assetBaseUrl, className = 'mb-4 h-6' }: T
    const hasCustomBrandingLogo = branding.brandingEnabled && Boolean(branding.brandingLogo);
  
    if (!hasCustomBrandingLogo) {
--    const documensoLogoUrl = new URL('/static/logo.png', assetBaseUrl).toString();
-+    const logoUrl = new URL('/static/logo.png', assetBaseUrl).toString();
+-    const documensoLogoUrl = getEmailAssetUrl(assetBaseUrl, 'static/logo.png');
++    const logoUrl = getEmailAssetUrl(assetBaseUrl, 'static/logo.png');
  
 -    return <Img src={documensoLogoUrl} alt="Documenso Logo" className={className} />;
 +    return <Img src={logoUrl} alt="TDPdf Signing Logo" className={className} />;
@@ -31925,7 +31918,7 @@ index c7e9968..061fda7 100644
  
    const brandingLogo = <Img src={branding.brandingLogo} alt="Branding Logo" className={className} />;
 diff --git a/packages/email/template-components/template-confirmation-email.tsx b/packages/email/template-components/template-confirmation-email.tsx
-index d017096..a9a4e82 100644
+index d0170967f..a9a4e82ff 100644
 --- a/packages/email/template-components/template-confirmation-email.tsx
 +++ b/packages/email/template-components/template-confirmation-email.tsx
 @@ -15,7 +15,7 @@ export const TemplateConfirmationEmail = ({ confirmationLink, assetBaseUrl }: Te
@@ -31938,23 +31931,27 @@ index d017096..a9a4e82 100644
  
          <Text className="my-1 text-center text-base text-muted-foreground">
 diff --git a/packages/email/template-components/template-document-image.tsx b/packages/email/template-components/template-document-image.tsx
-index ed45512..5451c25 100644
+index 88c06282c..f6e97162b 100644
 --- a/packages/email/template-components/template-document-image.tsx
 +++ b/packages/email/template-components/template-document-image.tsx
-@@ -16,7 +16,7 @@ export const TemplateDocumentImage = ({ assetBaseUrl, className }: TemplateDocum
+@@ -13,7 +13,11 @@ export const TemplateDocumentImage = ({ assetBaseUrl, className }: TemplateDocum
          <Column />
  
          <Column>
--          <Img className="mx-auto h-42" src={getAssetUrl('/static/document.png')} alt="Documenso" />
-+          <Img className="mx-auto h-42" src={getAssetUrl('/static/document.png')} alt="TDPdf Signing" />
+-          <Img className="mx-auto h-42" src={getEmailAssetUrl(assetBaseUrl, 'static/document.png')} alt="Documenso" />
++          <Img
++            className="mx-auto h-42"
++            src={getEmailAssetUrl(assetBaseUrl, 'static/document.png')}
++            alt="TDPdf Signing"
++          />
          </Column>
  
          <Column />
 diff --git a/packages/email/template-components/template-document-self-signed.tsx b/packages/email/template-components/template-document-self-signed.tsx
-index 8528435..4a93926 100644
+index 729a3b156..ee160aafb 100644
 --- a/packages/email/template-components/template-document-self-signed.tsx
 +++ b/packages/email/template-components/template-document-self-signed.tsx
-@@ -53,7 +53,7 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
+@@ -50,7 +50,7 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
          <Section className="mt-8 mb-6 text-center">
            <Button
              href={signUpUrl}
@@ -31962,8 +31959,8 @@ index 8528435..4a93926 100644
 +            className="rounded-lg border border-border border-solid px-4 py-2 text-center font-medium text-foreground text-sm no-underline"
            >
              <Img
-               src={getAssetUrl('/static/user-plus.png')}
-@@ -62,14 +62,6 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
+               src={getEmailAssetUrl(assetBaseUrl, 'static/user-plus.png')}
+@@ -59,18 +59,6 @@ export const TemplateDocumentSelfSigned = ({ documentName, assetBaseUrl }: Templ
              />
              <Trans>Create account</Trans>
            </Button>
@@ -31972,14 +31969,18 @@ index 8528435..4a93926 100644
 -            className="rounded-lg border border-border border-solid px-4 py-2 text-center font-medium text-foreground text-sm no-underline"
 -            href="https://documenso.com/pricing"
 -          >
--            <Img src={getAssetUrl('/static/review.png')} className="mr-2 mb-0.5 inline h-5 w-5 align-middle" alt="" />
+-            <Img
+-              src={getEmailAssetUrl(assetBaseUrl, 'static/review.png')}
+-              className="mr-2 mb-0.5 inline h-5 w-5 align-middle"
+-              alt=""
+-            />
 -            <Trans>View plans</Trans>
 -          </Button>
          </Section>
        </Section>
      </>
 diff --git a/packages/email/template-components/template-footer.tsx b/packages/email/template-components/template-footer.tsx
-index ed82efb..3efbbc9 100644
+index ed82efb78..3efbbc96f 100644
 --- a/packages/email/template-components/template-footer.tsx
 +++ b/packages/email/template-components/template-footer.tsx
 @@ -1,3 +1,4 @@
@@ -32020,29 +32021,33 @@ index ed82efb..3efbbc9 100644
        )}
      </Section>
 diff --git a/packages/email/templates/admin-user-created.tsx b/packages/email/templates/admin-user-created.tsx
-index ccc9202..b5c69f3 100644
+index 000b4d3cb..a27de5640 100644
 --- a/packages/email/templates/admin-user-created.tsx
 +++ b/packages/email/templates/admin-user-created.tsx
-@@ -12,7 +12,7 @@ export const AdminUserCreatedTemplate = ({
+@@ -13,7 +13,7 @@ export const AdminUserCreatedTemplate = ({
  }: TemplateAdminUserCreatedProps) => {
    const { _ } = useLingui();
  
 -  const previewText = msg`Set your password for Documenso`;
 +  const previewText = msg`Set your password for TDPdf Signing`;
  
-   const getAssetUrl = (path: string) => {
-     return new URL(path, assetBaseUrl).toString();
-@@ -27,7 +27,7 @@ export const AdminUserCreatedTemplate = ({
+   return (
+     <Html>
+@@ -24,7 +24,11 @@ export const AdminUserCreatedTemplate = ({
          <Section>
            <Container className="mx-auto mt-8 mb-2 max-w-xl rounded-lg border border-border border-solid p-4 backdrop-blur-sm">
              <Section>
--              <Img src={getAssetUrl('/static/logo.png')} alt="Documenso Logo" className="mb-4 h-6" />
-+              <Img src={getAssetUrl('/static/logo.png')} alt="TDPdf Signing Logo" className="mb-4 h-6" />
+-              <Img src={getEmailAssetUrl(assetBaseUrl, 'static/logo.png')} alt="Documenso Logo" className="mb-4 h-6" />
++              <Img
++                src={getEmailAssetUrl(assetBaseUrl, 'static/logo.png')}
++                alt="TDPdf Signing Logo"
++                className="mb-4 h-6"
++              />
  
                <TemplateAdminUserCreated resetPasswordLink={resetPasswordLink} assetBaseUrl={assetBaseUrl} />
              </Section>
 diff --git a/packages/email/templates/confirm-team-email.tsx b/packages/email/templates/confirm-team-email.tsx
-index 6deab57..fc22489 100644
+index 6deab57de..fc22489bd 100644
 --- a/packages/email/templates/confirm-team-email.tsx
 +++ b/packages/email/templates/confirm-team-email.tsx
 @@ -25,7 +25,7 @@ export const ConfirmTeamEmailTemplate = ({
@@ -32073,7 +32078,7 @@ index 6deab57..fc22489 100644
                    </Trans>
                  </Text>
 diff --git a/packages/email/templates/organisation-account-link-confirmation.tsx b/packages/email/templates/organisation-account-link-confirmation.tsx
-index aca38b4..e0de283 100644
+index aca38b491..e0de28312 100644
 --- a/packages/email/templates/organisation-account-link-confirmation.tsx
 +++ b/packages/email/templates/organisation-account-link-confirmation.tsx
 @@ -25,7 +25,7 @@ export const OrganisationAccountLinkConfirmationTemplate = ({
@@ -32115,7 +32120,7 @@ index aca38b4..e0de283 100644
                    </Trans>
                  </Text>
 diff --git a/packages/email/templates/organisation-invite.tsx b/packages/email/templates/organisation-invite.tsx
-index 09961a4..b448e78 100644
+index 09961a4d1..b448e7808 100644
 --- a/packages/email/templates/organisation-invite.tsx
 +++ b/packages/email/templates/organisation-invite.tsx
 @@ -24,7 +24,7 @@ export const OrganisationInviteEmailTemplate = ({
@@ -32137,7 +32142,7 @@ index 09961a4..b448e78 100644
  
                <Text className="my-1 text-center text-base">
 diff --git a/packages/email/templates/organisation-join.tsx b/packages/email/templates/organisation-join.tsx
-index eb676b5..57ac883 100644
+index eb676b5d3..57ac8835f 100644
 --- a/packages/email/templates/organisation-join.tsx
 +++ b/packages/email/templates/organisation-join.tsx
 @@ -26,7 +26,7 @@ export const OrganisationJoinEmailTemplate = ({
@@ -32150,7 +32155,7 @@ index eb676b5..57ac883 100644
    return (
      <Html>
 diff --git a/packages/email/templates/organisation-leave.tsx b/packages/email/templates/organisation-leave.tsx
-index 058b830..c2dbec1 100644
+index 058b830cb..c2dbec1cc 100644
 --- a/packages/email/templates/organisation-leave.tsx
 +++ b/packages/email/templates/organisation-leave.tsx
 @@ -26,7 +26,7 @@ export const OrganisationLeaveEmailTemplate = ({
@@ -32163,7 +32168,7 @@ index 058b830..c2dbec1 100644
    return (
      <Html>
 diff --git a/packages/email/templates/team-email-removed.tsx b/packages/email/templates/team-email-removed.tsx
-index 7543c87..f5fe3a5 100644
+index 7543c8789..f5fe3a5ae 100644
 --- a/packages/email/templates/team-email-removed.tsx
 +++ b/packages/email/templates/team-email-removed.tsx
 @@ -25,7 +25,7 @@ export const TeamEmailRemovedTemplate = ({
@@ -32176,7 +32181,7 @@ index 7543c87..f5fe3a5 100644
    return (
      <Html>
 diff --git a/packages/lib/constants/app.ts b/packages/lib/constants/app.ts
-index 17ded9d..f5be375 100644
+index 91edfc788..a7bce25fd 100644
 --- a/packages/lib/constants/app.ts
 +++ b/packages/lib/constants/app.ts
 @@ -1,6 +1,7 @@
@@ -32187,7 +32192,7 @@ index 17ded9d..f5be375 100644
  
  export const APP_DOCUMENT_UPLOAD_SIZE_LIMIT = Number(env('NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT')) || 50;
  
-@@ -64,7 +65,7 @@ export const IS_DOCUMENSO_CLOUD = () => env('NEXT_PUBLIC_IS_DOCUMENSO_CLOUD') ==
+@@ -72,7 +73,7 @@ export const IS_DOCUMENSO_CLOUD = () => env('NEXT_PUBLIC_IS_DOCUMENSO_CLOUD') ==
  export const API_V2_BETA_URL = '/api/v2-beta';
  export const API_V2_URL = '/api/v2';
  
@@ -32198,7 +32203,7 @@ index 17ded9d..f5be375 100644
  
 diff --git a/packages/lib/constants/brand.ts b/packages/lib/constants/brand.ts
 new file mode 100644
-index 0000000..42ac746
+index 000000000..42ac74605
 --- /dev/null
 +++ b/packages/lib/constants/brand.ts
 @@ -0,0 +1,24 @@
@@ -32227,7 +32232,7 @@ index 0000000..42ac746
 +
 +export const UPSTREAM_URL = 'https://github.com/documenso/documenso';
 diff --git a/packages/lib/constants/email.ts b/packages/lib/constants/email.ts
-index a6742c5..ef17338 100644
+index a6742c5a8..ef173383d 100644
 --- a/packages/lib/constants/email.ts
 +++ b/packages/lib/constants/email.ts
 @@ -1,7 +1,8 @@
@@ -32242,7 +32247,7 @@ index a6742c5..ef17338 100644
  export const DOCUMENSO_INTERNAL_EMAIL = {
    name: FROM_NAME,
 diff --git a/packages/lib/constants/theme.ts b/packages/lib/constants/theme.ts
-index ac81341..8dfff94 100644
+index ac813418b..8dfff941b 100644
 --- a/packages/lib/constants/theme.ts
 +++ b/packages/lib/constants/theme.ts
 @@ -29,22 +29,22 @@ export const DEFAULT_BRAND_COLORS = {
@@ -32274,7 +32279,7 @@ index ac81341..8dfff94 100644
    envelopeEditorBackground: '#f8fafc', //210 40% 98.04%
    // `cardBorderTint` is intentionally excluded from the colour-picker UI:
 diff --git a/packages/lib/jobs/definitions/emails/send-admin-user-created-email.handler.ts b/packages/lib/jobs/definitions/emails/send-admin-user-created-email.handler.ts
-index 1fd5341..b7a1300 100644
+index 1fd5341ef..b7a1300bb 100644
 --- a/packages/lib/jobs/definitions/emails/send-admin-user-created-email.handler.ts
 +++ b/packages/lib/jobs/definitions/emails/send-admin-user-created-email.handler.ts
 @@ -60,7 +60,7 @@ export const run = async ({ payload, io }: { payload: TSendAdminUserCreatedEmail
@@ -32287,7 +32292,7 @@ index 1fd5341..b7a1300 100644
      text,
    });
 diff --git a/packages/lib/server-only/2fa/setup-2fa.ts b/packages/lib/server-only/2fa/setup-2fa.ts
-index 515d017..99782b5 100644
+index 515d01779..99782b5b5 100644
 --- a/packages/lib/server-only/2fa/setup-2fa.ts
 +++ b/packages/lib/server-only/2fa/setup-2fa.ts
 @@ -3,6 +3,7 @@ import type { User } from '@prisma/client';
@@ -32308,7 +32313,7 @@ index 515d017..99782b5 100644
  export const setupTwoFactorAuthentication = async ({ user }: SetupTwoFactorAuthenticationOptions) => {
    const key = DOCUMENSO_ENCRYPTION_KEY;
 diff --git a/packages/lib/server-only/auth/send-forgot-password.ts b/packages/lib/server-only/auth/send-forgot-password.ts
-index c29d92b..05c43b7 100644
+index c29d92b54..05c43b756 100644
 --- a/packages/lib/server-only/auth/send-forgot-password.ts
 +++ b/packages/lib/server-only/auth/send-forgot-password.ts
 @@ -3,9 +3,9 @@ import { ForgotPasswordTemplate } from '@documenso/email/templates/forgot-passwo
@@ -32334,20 +32339,18 @@ index c29d92b..05c43b7 100644
      subject: i18n._(msg`Forgot Password?`),
      html,
 diff --git a/packages/lib/server-only/auth/send-reset-password.ts b/packages/lib/server-only/auth/send-reset-password.ts
-index 3c4957d..57d9cf7 100644
+index e87537f3f..9cacba08c 100644
 --- a/packages/lib/server-only/auth/send-reset-password.ts
 +++ b/packages/lib/server-only/auth/send-reset-password.ts
-@@ -2,8 +2,8 @@ import { mailer } from '@documenso/email/mailer';
- import { ResetPasswordTemplate } from '@documenso/email/templates/reset-password';
- import { prisma } from '@documenso/prisma';
- import { createElement } from 'react';
--
+@@ -8,6 +8,7 @@ import { match } from 'ts-pattern';
+ import { getI18nInstance } from '../../client-only/providers/i18n-server';
  import { NEXT_PUBLIC_WEBAPP_URL } from '../../constants/app';
+ import type { TPasswordChangeSource } from '../../jobs/definitions/emails/send-password-reset-success-email';
 +import { BRAND_NAME, BRAND_NOREPLY_EMAIL } from '../../constants/brand';
  import { env } from '../../utils/env';
  import { renderEmailWithI18N } from '../../utils/render-email-with-i18n';
  
-@@ -37,8 +37,8 @@ export const sendResetPassword = async ({ userId }: SendResetPasswordOptions) =>
+@@ -50,8 +51,8 @@ export const sendResetPassword = async ({ userId, source }: SendResetPasswordOpt
        name: user.name || '',
      },
      from: {
@@ -32356,10 +32359,10 @@ index 3c4957d..57d9cf7 100644
 +      name: env('NEXT_PRIVATE_SMTP_FROM_NAME') || BRAND_NAME,
 +      address: env('NEXT_PRIVATE_SMTP_FROM_ADDRESS') || BRAND_NOREPLY_EMAIL,
      },
-     subject: 'Password Reset Success!',
+     subject,
      html,
 diff --git a/packages/lib/server-only/organisation/create-organisation-member-invites.ts b/packages/lib/server-only/organisation/create-organisation-member-invites.ts
-index a31aafe..fcb3b25 100644
+index a31aafe6a..fcb3b2533 100644
 --- a/packages/lib/server-only/organisation/create-organisation-member-invites.ts
 +++ b/packages/lib/server-only/organisation/create-organisation-member-invites.ts
 @@ -193,7 +193,7 @@ export const sendOrganisationMemberInviteEmail = async ({
@@ -32372,7 +32375,7 @@ index a31aafe..fcb3b25 100644
      text,
    });
 diff --git a/packages/lib/server-only/team/create-team-email-verification.ts b/packages/lib/server-only/team/create-team-email-verification.ts
-index 12db854..eaf8872 100644
+index 12db8543b..eaf88722b 100644
 --- a/packages/lib/server-only/team/create-team-email-verification.ts
 +++ b/packages/lib/server-only/team/create-team-email-verification.ts
 @@ -138,7 +138,7 @@ export const sendTeamEmailVerificationEmail = async (email: string, token: strin
@@ -32385,7 +32388,7 @@ index 12db854..eaf8872 100644
      text,
    });
 diff --git a/packages/lib/server-only/team/delete-team.ts b/packages/lib/server-only/team/delete-team.ts
-index b9393db..98cc711 100644
+index b9393db84..98cc711b6 100644
 --- a/packages/lib/server-only/team/delete-team.ts
 +++ b/packages/lib/server-only/team/delete-team.ts
 @@ -138,7 +138,7 @@ export const sendTeamDeleteEmail = async ({ email, team, organisationId }: SendT
@@ -32398,7 +32401,7 @@ index b9393db..98cc711 100644
      text,
    });
 diff --git a/packages/lib/utils/authenticator.ts b/packages/lib/utils/authenticator.ts
-index 5984603..4859ca5 100644
+index 5984603a9..4859ca59c 100644
 --- a/packages/lib/utils/authenticator.ts
 +++ b/packages/lib/utils/authenticator.ts
 @@ -1,5 +1,6 @@
@@ -32418,7 +32421,7 @@ index 5984603..4859ca5 100644
      origin: NEXT_PUBLIC_WEBAPP_URL(),
      timeout: PASSKEY_TIMEOUT,
 diff --git a/packages/tailwind-config/index.cjs b/packages/tailwind-config/index.cjs
-index 2b7703f..28e1d5d 100644
+index 2b7703f82..28e1d5de4 100644
 --- a/packages/tailwind-config/index.cjs
 +++ b/packages/tailwind-config/index.cjs
 @@ -68,18 +68,18 @@ module.exports = {
@@ -32453,7 +32456,7 @@ index 2b7703f..28e1d5d 100644
          dawn: {
            DEFAULT: '#aaa89f',
 diff --git a/packages/trpc/server/admin-router/email-transport/send-test-email-transport.ts b/packages/trpc/server/admin-router/email-transport/send-test-email-transport.ts
-index fd7c532..aa00400 100644
+index fd7c53211..aa0040035 100644
 --- a/packages/trpc/server/admin-router/email-transport/send-test-email-transport.ts
 +++ b/packages/trpc/server/admin-router/email-transport/send-test-email-transport.ts
 @@ -40,7 +40,7 @@ export const sendTestEmailTransportRoute = adminProcedure
@@ -32466,7 +32469,7 @@ index fd7c532..aa00400 100644
        });
      } catch (err) {
 diff --git a/packages/ui/primitives/document-flow/add-subject.tsx b/packages/ui/primitives/document-flow/add-subject.tsx
-index e9dfce7..55b5ed9 100644
+index e9dfce7b7..55b5ed91d 100644
 --- a/packages/ui/primitives/document-flow/add-subject.tsx
 +++ b/packages/ui/primitives/document-flow/add-subject.tsx
 @@ -1,5 +1,6 @@
@@ -32486,7 +32489,7 @@ index e9dfce7..55b5ed9 100644
                                </Select>
                              </FormControl>
 diff --git a/packages/ui/primitives/template-flow/add-template-settings.tsx b/packages/ui/primitives/template-flow/add-template-settings.tsx
-index 94114df..46ac533 100644
+index 94114df75..46ac53367 100644
 --- a/packages/ui/primitives/template-flow/add-template-settings.tsx
 +++ b/packages/ui/primitives/template-flow/add-template-settings.tsx
 @@ -1,5 +1,6 @@
@@ -32506,7 +32509,7 @@ index 94114df..46ac533 100644
                                  </Select>
                                </FormControl>
 diff --git a/packages/ui/styles/theme.css b/packages/ui/styles/theme.css
-index aa4691c..04bccf8 100644
+index aa4691c40..04bccf85d 100644
 --- a/packages/ui/styles/theme.css
 +++ b/packages/ui/styles/theme.css
 @@ -19,8 +19,8 @@

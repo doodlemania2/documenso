@@ -205,41 +205,39 @@ and bump the `-tdp.N` suffix of `IMAGE_TAG` in `pins.env`.
 
 ## Building
 
-On `doodlessd` (linux/amd64, where the image runs).
+Build on `doodlemanage` (linux/amd64, 12 cores, otherwise idle), **never on
+`doodlessd`**. `doodlessd` serves the live sites, and this build takes about 30
+minutes of CPU. `doodlemanage` pushes the image to the internal registry
+(`registry.cluster.thedoodleproject.net`). `doodlessd` then pulls it and gives it
+the local tag that compose uses.
 
 **BuildKit is required.** Upstream's Dockerfile creates `WORKDIR /app` after
 `USER nodejs`; BuildKit makes that directory owned by `nodejs`, the legacy
 builder makes it owned by root, and the runner stage's `npm ci` then fails with
-`EACCES` on `/app/node_modules` — after the whole monorepo has built. The host's
-Docker 29 had no buildx plugin, so it silently used the legacy builder.
-`build.sh` now refuses to start without buildx.
+`EACCES` on `/app/node_modules` — after the whole monorepo has built.
+`build.sh` refuses to start without buildx. doodlemanage has buildx and the
+registry login. One-time check there: `docker buildx version` and
+`docker login registry.cluster.thedoodleproject.net` as `derek`.
 
-One-time setup on the host, as `derek`, no sudo — buildx v0.37.2 into the
-per-user plugin directory, checked against the release's checksums, and a
-BuildKit builder container capped at 4 of the 6 cores and 10 GB so the live
-stack keeps headroom. Both images are pinned:
-
-```bash
-V=v0.37.2
-curl -fsSLo /tmp/buildx https://github.com/docker/buildx/releases/download/$V/buildx-$V.linux-amd64
-curl -fsSL https://github.com/docker/buildx/releases/download/$V/checksums.txt \
-  | grep " \*\?buildx-$V.linux-amd64$" | sed "s/\*//;s#buildx-$V.linux-amd64#/tmp/buildx#" | sha256sum -c -
-mkdir -p ~/.docker/cli-plugins && install -m 755 /tmp/buildx ~/.docker/cli-plugins/docker-buildx
-
-docker buildx create --name tdp-capped --driver docker-container \
-  --driver-opt image=moby/buildkit:v0.26.2@sha256:de10faf919fc71ba4eb1dd7bd6449566d012b0c9436b1c61bfee21d621b009aa,memory=10g,memory-swap=10g,cpuset-cpus=0-3
-```
-
-The host has no git checkout of this repo, so copy the three build inputs over
-and build on the capped builder (`--load` puts the result in the host's image
-store, where compose can use it):
+The build host has no git checkout of this repo, so copy the three build inputs
+over, build, and push:
 
 ```bash
-ssh derek@doodlessd 'rm -rf ~/documenso-build && mkdir ~/documenso-build'
-scp -r fork/build.sh fork/pins.env fork/patches derek@doodlessd:documenso-build/
-ssh derek@doodlessd 'cd ~/documenso-build && \
-  BUILDKIT_PROGRESS=plain BUILD_EXTRA_ARGS="--builder tdp-capped --load" ./build.sh'
+ssh derek@doodlemanage 'rm -rf ~/documenso-build && mkdir ~/documenso-build'
+scp -r fork/build.sh fork/pins.env fork/patches derek@doodlemanage:documenso-build/
+ssh derek@doodlemanage 'cd ~/documenso-build && \
+  BUILDKIT_PROGRESS=plain PUSH=1 BUILD_EXTRA_ARGS="--load" ./build.sh'
 ```
+
+Then pull it on `doodlessd` and give it the tag that compose uses. Substitute
+the tag that `build.sh` prints:
+
+```bash
+ssh derek@doodlessd 'docker pull registry.cluster.thedoodleproject.net/documenso:v2.18.0-tdp.N && \
+  docker tag registry.cluster.thedoodleproject.net/documenso:v2.18.0-tdp.N tdp/documenso:v2.18.0-tdp.N'
+```
+
+An image ID is the same on both hosts, so the ID that you record below stays valid.
 
 `build.sh` refuses to build if the upstream tag no longer resolves to the
 pinned commit or a patch does not match `SHA256SUMS`. It prints the image ID;

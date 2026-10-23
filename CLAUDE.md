@@ -26,3 +26,8 @@ Repo specifics:
   Title/Priority/Tags, `|| true`). Any new workflow must do the same.
 - Main is protected: a PR is required, the five checks must pass, the branch must be up to date,
   no force push, no deletion. Admin enforcement is OFF so Derek can merge in an emergency.
+
+## Upstream adoption is Derek's call, every time
+Never bump `fork/pins.env` to a new upstream release (or deploy one) on your own initiative. When a
+new Documenso release exists, tell Derek what changed (release notes, migrations, v2 API changes,
+patch conflicts) and wait for a yes. The v2.18.0 -> v2.21.1 sync was done at his request.

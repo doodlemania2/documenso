@@ -273,6 +273,9 @@ image and the self-signed `.p12`, which the overlay never removes.
 
 ## Upgrading upstream
 
+**Adopting an upstream release is a decision Derek makes each time.** Do not sync or deploy a new
+release unprompted: report what changed and wait for a yes.
+
 1. Update `UPSTREAM_TAG` and `UPSTREAM_COMMIT` in `pins.env` (verify the commit
    against the GitHub release, not just the tag), reset `-tdp.N` to `-tdp.1`.
 2. Clone the new tag into `fork/upstream/`, `git apply --3way` each patch, fix

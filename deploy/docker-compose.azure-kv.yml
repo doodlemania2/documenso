@@ -11,10 +11,12 @@
 # TDP-182), and two files in ./secrets/.
 services:
   documenso:
-    # Our image: upstream v2.18.0 + fork/patches/, built ON THIS HOST by
-    # fork/build.sh. It is never pulled, so `pull_policy: never` makes a missing
-    # local image a hard error instead of a pull of whatever Docker Hub might
-    # have under the same name.
+    # Our image: upstream v2.18.0 + fork/patches/, built on doodlemanage by
+    # fork/build.sh, pushed to the internal registry, then pulled on this host
+    # and tagged tdp/documenso:<tag> by hand (see fork/README.md, "Building").
+    # Compose never pulls it, so `pull_policy: never` makes a missing local
+    # image a hard error instead of a pull of whatever Docker Hub might have
+    # under the same name.
     #
     # A locally built image has no registry digest to pin, so the pin is its
     # image ID. Before cutover, confirm the image on the host is the one that

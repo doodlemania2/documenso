@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # Builds our Documenso image: upstream at a pinned commit, plus the patches in
-# fork/patches/, using upstream's own Dockerfile. Run on the host that will run
-# the image (doodlessd, linux/amd64). It builds an image and does nothing else:
-# switching the stack to it is a separate, deliberate step (see fork/README.md).
+# fork/patches/, using upstream's own Dockerfile. It builds an image and does
+# nothing else: switching the stack to it is a separate, deliberate step (see
+# fork/README.md).
+#
+# Run it on doodlemanage (linux/amd64), never on doodlessd. doodlessd serves the
+# live sites, and a 30-minute monorepo build there slows them down. doodlemanage
+# pushes the image to the internal registry; doodlessd pulls it. See "Building"
+# in fork/README.md.
 #
 #   fork/build.sh            # build, tag, print the image ID
+#   PUSH=1 fork/build.sh     # also push to the internal registry (needs docker login)
 #
-# The host also runs the live stack, so the build can be capped. Extra
-# `docker build` arguments come from BUILD_EXTRA_ARGS, e.g.
+# Extra `docker build` arguments come from BUILD_EXTRA_ARGS, e.g.
 #   BUILD_EXTRA_ARGS="--cpuset-cpus 0-3 --memory 12g" fork/build.sh
 #
 # Every input is pinned. The upstream commit is checked after the clone, so a
@@ -71,3 +76,15 @@ echo
 echo "==> built $IMAGE_TAG"
 echo "    image ID: $(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
 echo "    Record that ID in deploy/docker-compose.azure-kv.yml before switching the stack to it."
+
+# The registry name keeps the tag, so doodlessd can pull it and re-tag it as $IMAGE_TAG.
+REGISTRY="${REGISTRY:-registry.cluster.thedoodleproject.net}"
+REGISTRY_IMAGE="$REGISTRY/documenso:${IMAGE_TAG#*:}"
+if [[ "${PUSH:-}" == "1" ]]; then
+  echo "==> pushing $REGISTRY_IMAGE"
+  docker tag "$IMAGE_TAG" "$REGISTRY_IMAGE"
+  docker push "$REGISTRY_IMAGE"
+  echo "    On doodlessd: docker pull $REGISTRY_IMAGE && docker tag $REGISTRY_IMAGE $IMAGE_TAG"
+else
+  echo "    Not pushed. Run again with PUSH=1 to push to $REGISTRY_IMAGE."
+fi

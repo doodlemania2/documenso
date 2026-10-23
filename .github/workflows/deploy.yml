@@ -13,8 +13,8 @@
 # README and backup edits start nothing.
 #
 # The bump job merges with GITHUB_TOKEN, and a push made with GITHUB_TOKEN starts no workflow. So the
-# bump job starts the deploy itself with workflow_dispatch. For the same reason it starts ci.yml on
-# the bump branch by hand, so the required checks exist on the PR.
+# bump job starts the deploy itself with workflow_dispatch. The bump PR's own ci.yml run is held for
+# approval (action_required), so the bump job approves it; that is what makes the checks count.
 #
 # Needs: secrets REGISTRY_USERNAME, REGISTRY_PASSWORD, NTFY_URL; variable BUILD_RUNNER; the runner
 # doodlessd-documenso-deploy (deploy/doodlessd/docker-compose.runner.yml); and the repo setting
@@ -120,6 +120,7 @@ jobs:
       contents: write
       pull-requests: write
       actions: write
+      checks: read
     env:
       GH_TOKEN: ${{ github.token }}
       REF: ${{ needs.build.outputs.ref }}
@@ -154,11 +155,22 @@ jobs:
             --body "Opened by the deploy workflow (run ${GITHUB_RUN_ID}). Pins \`${REF}\`. It merges itself when the five required checks pass, then deploys.")"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "pr=${url##*/}" >> "$GITHUB_OUTPUT"
-      - name: Run the required checks on the PR branch
-        # A PR opened with GITHUB_TOKEN starts no workflow. A manual dispatch is allowed.
+      - name: Start the required checks on the PR
+        # A PR opened with GITHUB_TOKEN gets its pull_request run held as action_required (the
+        # fork-PR approval policy). Only that run counts as a check on the PR. A run started by
+        # workflow_dispatch does not. So approve the held run.
         env:
           BRANCH: ${{ steps.pr.outputs.branch }}
-        run: gh workflow run ci.yml --ref "$BRANCH"
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            run="$(gh run list --workflow ci.yml --branch "$BRANCH" --event pull_request \
+              --json databaseId,conclusion -q '.[0] | select(.conclusion == "action_required") | .databaseId' || true)"
+            [[ -n "$run" ]] && break
+            sleep 5
+          done
+          [[ -n "${run:-}" ]] || { echo "::error::no held ci.yml run found for $BRANCH"; exit 1; }
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run}/approve"
       - name: Wait for the checks, merge, start the deploy
         env:
           PR: ${{ steps.pr.outputs.pr }}

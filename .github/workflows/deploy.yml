@@ -29,7 +29,6 @@ on:
       - "fork/build.sh"
       - "fork/patches/**"
       - "deploy/docker-compose*.yml"
-      - "deploy/doodlessd/deploy.sh"
   workflow_dispatch:
     inputs:
       mode:
@@ -72,7 +71,7 @@ jobs:
             # A merge commit has two parents. Compare with the first: that is main before the merge.
             changed="$(git diff --name-only HEAD^1 HEAD)"
             grep -qE '^fork/(pins\.env|build\.sh|patches/)' <<<"$changed" && build=true || true
-            grep -qE '^deploy/(docker-compose[^/]*\.yml|doodlessd/deploy\.sh)$' <<<"$changed" && deploy=true || true
+            grep -qE '^deploy/docker-compose[^/]*\.yml$' <<<"$changed" && deploy=true || true
             # A build run deploys through bump, after the pin exists. Do not deploy the old pin first.
             [[ "$build" == true ]] && deploy=false
           fi

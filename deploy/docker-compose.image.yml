@@ -1,0 +1,8 @@
+# Written by .github/workflows/deploy.yml. Do not edit by hand.
+# The image deploy.sh rolls out: registry tag plus digest. The digest is what is pulled;
+# the tag is for people (and for deploy.sh's downgrade check). This file overrides the
+# image of docker-compose.azure-kv.yml, so the overlay stays untouched.
+services:
+  documenso:
+    image: registry.cluster.thedoodleproject.net/documenso:v2.21.1-tdp.1@sha256:1252effb84ce02e7c9edcaf7303812986dfb19a4aed4b683251818489106a916
+    pull_policy: missing

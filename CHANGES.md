@@ -58,5 +58,6 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
 
 ## 2026-10-26 — against v2.21.1
 
-- **Zoho SalesIQ chat widget on every page** (`fork/patches/0006-tdpdf-zoho-salesiq-widget.patch`).
-  The widget snippet is added to the `<head>` in `apps/remix/app/root.tsx`, nonced for the CSP.
+- **Zoho SalesIQ chat widget in the signed-in app** (`fork/patches/0006-tdpdf-zoho-salesiq-widget.patch`).
+  The widget snippet is added to the `<head>` in `apps/remix/app/root.tsx` for `_authenticated` routes only (not signing
+  pages, embeds or public pages), nonced for the CSP.

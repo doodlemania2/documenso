@@ -175,6 +175,14 @@ see each other's documents. Creation is deduplicated per user within the process
 makes one team); with more than one server process that guard would not hold. The GET of the page
 never creates anything.
 
+### 0006 — Zoho SalesIQ chat widget
+
+`apps/remix/app/root.tsx`: the Zoho SalesIQ snippet (inline `$zoho` stub plus the deferred
+`#zsiqscript` loader) in the `<head>` of the root layout, so it is on every page. Both tags carry the
+per-request CSP nonce; `script-src` is `'nonce-…' 'strict-dynamic'`, so a bare tag would be blocked.
+The widget's own scripts are then trusted via `strict-dynamic`. Third-party styles are not: see
+`style-src-elem` in `apps/remix/server/security-headers.ts` if the widget renders unstyled.
+
 ## Working on the patches
 
 ```bash

@@ -1,0 +1,25 @@
+diff --git a/apps/remix/app/root.tsx b/apps/remix/app/root.tsx
+index b7f1caf..a349132 100644
+--- a/apps/remix/app/root.tsx
++++ b/apps/remix/app/root.tsx
+@@ -156,6 +156,20 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
+ 
+         {/* Fix: https://stackoverflow.com/questions/21147149/flash-of-unstyled-content-fouc-in-firefox-only-is-ff-slow-renderer */}
+         <script nonce={nonce(cspNonce)}>0</script>
++
++        {/* Zoho SalesIQ chat widget (TDPdf). Nonced so the strict script-src CSP allows it. */}
++        <script
++          nonce={nonce(cspNonce)}
++          dangerouslySetInnerHTML={{
++            __html: `window.$zoho=window.$zoho || {};$zoho.salesiq=$zoho.salesiq||{ready:function(){}}`,
++          }}
++        />
++        <script
++          id="zsiqscript"
++          nonce={nonce(cspNonce)}
++          src="https://salesiq.zohopublic.com/widget?wc=siq9464a20716260842d19e600eb5b9bbcb561105d640415544cca421bfe47b31b4"
++          defer
++        />
+       </head>
+       <body className={isRecipientRoute ? 'documenso-branded' : undefined}>
+         {/* Global license banner currently disabled. Need to wait until after a few releases. */}

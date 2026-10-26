@@ -55,3 +55,9 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
   `getEmailAssetUrl` and added legal links and a subject line; the "View plans" button upstream
   re-added to the self-signed email stays removed. `package-lock.json` was regenerated for the two
   Azure SDK dependencies. No behaviour of ours changed.
+
+## 2026-10-26 — against v2.21.1
+
+- **Zoho SalesIQ chat widget in the signed-in app** (`fork/patches/0006-tdpdf-zoho-salesiq-widget.patch`).
+  The widget snippet is added to the `<head>` in `apps/remix/app/root.tsx` for `_authenticated` routes only (not signing
+  pages, embeds or public pages), nonced for the CSP.

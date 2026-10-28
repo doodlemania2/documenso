@@ -16,7 +16,7 @@
 # bump job starts the deploy itself with workflow_dispatch. The bump PR's own ci.yml run is held for
 # approval (action_required), so the bump job approves it; that is what makes the checks count.
 #
-# Needs: secrets REGISTRY_USERNAME, REGISTRY_PASSWORD, NTFY_URL; variable BUILD_RUNNER; the runner
+# Needs: secrets EDGE_REGISTRY_USERNAME, EDGE_REGISTRY_PASSWORD, NTFY_URL; variable BUILD_RUNNER; the runner
 # doodlessd-documenso-deploy (deploy/doodlessd/docker-compose.runner.yml); and the repo setting
 # "Allow GitHub Actions to create and approve pull requests".
 name: deploy
@@ -46,7 +46,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGISTRY: registry.cluster.thedoodleproject.net
+  REGISTRY: doodlemanage.tail890bc.ts.net:5000
 
 jobs:
   plan:
@@ -90,8 +90,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Log in to the registry
         env:
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          REGISTRY_USERNAME: ${{ secrets.EDGE_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.EDGE_REGISTRY_PASSWORD }}
         run: printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
       - name: Build and push
         # --load keeps the image in the local store, so the digest can be read after the push.
@@ -209,8 +209,8 @@ jobs:
           ref: main
       - name: Log in to the registry
         env:
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          REGISTRY_USERNAME: ${{ secrets.EDGE_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.EDGE_REGISTRY_PASSWORD }}
         run: printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
       - name: Deploy
         run: deploy/doodlessd/deploy.sh "$GITHUB_WORKSPACE/deploy"

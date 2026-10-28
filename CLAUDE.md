@@ -31,7 +31,7 @@ Repo specifics:
   on the doodlessd runner (label `doodlessd-documenso-deploy`, compose file in `deploy/doodlessd/`).
   `deploy/docker-compose.image.yml` is written by the workflow (a bot PR); never edit it by hand.
   `deploy.sh` refuses a downgrade, dumps the database first, and rolls back on a failed health check.
-  Needs secrets `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `NTFY_URL`.
+  Needs secrets `EDGE_REGISTRY_USERNAME`, `EDGE_REGISTRY_PASSWORD`, `NTFY_URL`.
 - The stack on doodlessd runs three compose files, in this order: `docker-compose.yml`,
   `docker-compose.azure-kv.yml`, `docker-compose.image.yml`.
 

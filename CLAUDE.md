@@ -39,3 +39,11 @@ Repo specifics:
 Never bump `fork/pins.env` to a new upstream release (or deploy one) on your own initiative. When a
 new Documenso release exists, tell Derek what changed (release notes, migrations, v2 API changes,
 patch conflicts) and wait for a yes. The v2.18.0 -> v2.21.1 sync was done at his request.
+
+## Worktrees
+
+Follow the shared convention in `/Volumes/Data/repos/CLAUDE.md`:
+
+- Create: `/Volumes/Data/repos/_tools/wt new documenso <issue#>-<slug> [branch]`. It freshens the primary and cuts `/Volumes/Data/repos/documenso.worktrees/<issue#>-<slug>` from `origin/main`.
+- Reclaim: `/Volumes/Data/repos/_tools/wt done documenso <issue#>-<slug>` once the branch has landed on `main`.
+- Leave the primary checkout on `main` and clean. Do not use `git stash`, because all worktrees share one stash stack.

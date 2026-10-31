@@ -36,3 +36,5 @@ fork/upstream/
 !.env.template
 kubeconfig
 local.settings.json
+__pycache__/
+*.pyc

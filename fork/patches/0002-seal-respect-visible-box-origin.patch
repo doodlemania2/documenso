@@ -1,99 +1,40 @@
-diff --git a/packages/lib/jobs/definitions/internal/seal-document.handler.ts b/packages/lib/jobs/definitions/internal/seal-document.handler.ts
-index 49758b323..efbd2e48a 100644
---- a/packages/lib/jobs/definitions/internal/seal-document.handler.ts
-+++ b/packages/lib/jobs/definitions/internal/seal-document.handler.ts
-@@ -20,6 +20,7 @@ import { getCertificatePdf } from '../../../server-only/htmltopdf/get-certificat
- import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf-v1';
- import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
- import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
-+import { drawPageOverlay, getPageOverlayPlacement } from '../../../server-only/pdf/page-overlay-placement';
- import { getTeamSettings } from '../../../server-only/team/get-team-settings';
- import { triggerWebhook } from '../../../server-only/webhooks/trigger/trigger-webhook';
- import { DOCUMENT_AUDIT_LOG_TYPE, type TDocumentAuditLog } from '../../../types/document-audit-logs';
-@@ -439,46 +440,18 @@ const decorateAndSignPdf = async ({
-         throw new Error(`Page ${pageNumber} does not exist`);
-       }
- 
--      const pageWidth = page.width;
--      const pageHeight = page.height;
-+      // Size and position the overlay to the page's visible box, in the
-+      // orientation that react-pdf renders on the frontend.
-+      const placement = getPageOverlayPlacement(pdfDoc, page);
- 
-       const overlayBytes = await insertFieldInPDFV2({
--        pageWidth,
--        pageHeight,
-+        pageWidth: placement.width,
-+        pageHeight: placement.height,
-         fields,
-       });
- 
--      const overlayPdf = await PDF.load(overlayBytes);
--
--      const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0);
--
--      // Rotate the page to the orientation that the react-pdf renders on the frontend.
--      let translateX = 0;
--      let translateY = 0;
--
--      switch (page.rotation) {
--        case 90:
--          translateX = pageHeight;
--          translateY = 0;
--          break;
--        case 180:
--          translateX = pageWidth;
--          translateY = pageHeight;
--          break;
--        case 270:
--          translateX = 0;
--          translateY = pageWidth;
--          break;
--      }
--
-       // Draw the overlay on the page
--      page.drawPage(embeddedPage, {
--        x: translateX,
--        y: translateY,
--        rotate: {
--          angle: page.rotation,
--        },
--      });
-+      await drawPageOverlay(pdfDoc, page, await PDF.load(overlayBytes), placement);
-     }
-   }
- 
-diff --git a/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts b/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
-index ad4465229..9a4264d5d 100644
---- a/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
-+++ b/packages/lib/server-only/pdf/generate-partial-signed-pdf.ts
-@@ -3,6 +3,7 @@ import { PDF } from '@libpdf/core';
- import { groupBy } from 'remeda';
- 
- import { insertFieldInPDFV2 } from './insert-field-in-pdf-v2';
+diff --git a/packages/lib/server-only/pdf/insert-page-overlay.ts b/packages/lib/server-only/pdf/insert-page-overlay.ts
+index d9ac56849..5ef8d5a37 100644
+--- a/packages/lib/server-only/pdf/insert-page-overlay.ts
++++ b/packages/lib/server-only/pdf/insert-page-overlay.ts
+@@ -6,6 +6,7 @@ import { groupBy, unique } from 'remeda';
+ import { AppError, AppErrorCode } from '../../errors/app-error';
+ import type { ContentImageMap } from '../../universal/content-renderer/content-renderer';
+ import { insertFieldInPDFV2, type OverlayContent } from './insert-field-in-pdf-v2';
 +import { drawPageOverlay, getPageOverlayPlacement } from './page-overlay-placement';
  
- type GeneratePartialSignedPdfOptions = {
-   pdfData: Uint8Array;
-@@ -32,42 +33,15 @@ export const generatePartialSignedPdf = async ({ pdfData, fields }: GeneratePart
-       throw new Error(`Page ${pageNumber} does not exist`);
+ type InsertPageOverlaysOptions = {
+   pdfDoc: PDF;
+@@ -29,46 +30,18 @@ export const insertPageOverlays = async ({ pdfDoc, fields, contents = [], images
+       });
      }
  
 -    const pageWidth = page.width;
 -    const pageHeight = page.height;
++    // Size and position the overlay to the page's visible box, in the
++    // orientation that react-pdf renders on the frontend.
 +    const placement = getPageOverlayPlacement(pdfDoc, page);
-+
+ 
      const overlayBytes = await insertFieldInPDFV2({
 -      pageWidth,
 -      pageHeight,
 +      pageWidth: placement.width,
 +      pageHeight: placement.height,
-       fields: pageFields,
+       fields: fieldsByPage[pageNumber] ?? [],
+       contents: contentsByPage[pageNumber] ?? [],
+       images,
      });
  
--    const overlayPdf = await PDF.load(overlayBytes);
+-    const overlayPdf = await PDFDocument.load(overlayBytes);
+-
 -    const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0);
 -
+-    // Rotate the page to the orientation that the react-pdf renders on the frontend.
 -    let translateX = 0;
 -    let translateY = 0;
 -
@@ -119,10 +60,9 @@ index ad4465229..9a4264d5d 100644
 -        angle: page.rotation,
 -      },
 -    });
-+    await drawPageOverlay(pdfDoc, page, await PDF.load(overlayBytes), placement);
++    await drawPageOverlay(pdfDoc, page, await PDFDocument.load(overlayBytes), placement);
    }
- 
-   pdfDoc.flattenAll();
+ };
 diff --git a/packages/lib/server-only/pdf/page-overlay-placement.test.ts b/packages/lib/server-only/pdf/page-overlay-placement.test.ts
 new file mode 100644
 index 000000000..c7d13dd3a

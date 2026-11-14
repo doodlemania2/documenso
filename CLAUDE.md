@@ -38,7 +38,7 @@ Repo specifics:
 ## Upstream adoption is Derek's call, every time
 Never bump `fork/pins.env` to a new upstream release (or deploy one) on your own initiative. When a
 new Documenso release exists, tell Derek what changed (release notes, migrations, v2 API changes,
-patch conflicts) and wait for a yes. The v2.18.0 -> v2.21.1 sync was done at his request.
+patch conflicts) and wait for a yes. The v2.18.0 -> v2.21.1 and v2.21.1 -> v2.22.0 syncs were done at his request.
 
 ## Worktrees
 

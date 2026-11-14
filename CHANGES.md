@@ -61,3 +61,15 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
 - **Zoho SalesIQ chat widget in the signed-in app** (`fork/patches/0006-tdpdf-zoho-salesiq-widget.patch`).
   The widget snippet is added to the `<head>` in `apps/remix/app/root.tsx` for `_authenticated` routes only (not signing
   pages, embeds or public pages), nonced for the CSP.
+
+## 2026-11-14 — rebased onto v2.22.0 (`d32d049165db230820465b4f566061ba8fa27012`)
+
+- All six patches re-applied to v2.22.0 (from v2.21.1). `0001` only needed its `package-lock.json`
+  hunk regenerated. `0002` was reworked: upstream's content fields (#3395) moved the overlay loop
+  into `insertPageOverlays` (`insert-page-overlay.ts`), so the visible-box placement now lives
+  there and `seal-document.handler.ts` and `generate-partial-signed-pdf.ts` are no longer touched
+  by the patch (they pick it up through `insertPageOverlays`). Behaviour is unchanged; its 10 tests
+  pass. `0003`–`0006` applied unchanged.
+- Upstream adds three migrations, run at boot: `add_envelope_contents`, and two that lowercase
+  existing user and recipient emails (`lowercase_user_emails`, `lowercase_recipient_emails`).
+  Check for case-duplicate emails before deploying.

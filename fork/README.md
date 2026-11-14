@@ -95,7 +95,7 @@ The patch:
   normalised, CropBox ∩ MediaBox — pdf.js's `Page.view`) and returns the
   overlay's displayed size plus the `drawPage` origin, rotation-aware and
   including the box's own origin. `drawPageOverlay` embeds and draws it.
-- Both call sites use it; nothing else changes. On an ordinary page (box at
+- Both call sites use it (since v2.22.0 through upstream's shared `insertPageOverlays`, which the patch changes); nothing else changes. On an ordinary page (box at
   the origin, rotation on the page itself) the drawn operators are identical
   to upstream's.
 - `page-overlay-placement.test.ts`: 10 tests. Each builds a page (offset
@@ -188,7 +188,7 @@ The widget's own scripts are then trusted via `strict-dynamic`. Third-party styl
 
 ```bash
 source ~/.nvm/nvm.sh && nvm use 24          # upstream requires Node >= 24
-git clone --depth 1 --branch v2.21.1 https://github.com/documenso/documenso.git fork/upstream
+git clone --depth 1 --branch v2.22.0 https://github.com/documenso/documenso.git fork/upstream
 cd fork/upstream
 git apply ../patches/*.patch
 npm ci

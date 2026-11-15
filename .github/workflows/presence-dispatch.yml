@@ -1,4 +1,5 @@
 # Tells the tdpdf-site receivers that the app changed (fleet-presence STANDARD.md, requirement 7).
+# The shared workflow lives in the public fleet-presence-dispatch repo, because a public repo cannot call a private one.
 # Only changes that can alter what users see or what the changelog says dispatch: the patches, the upstream pin,
 # the feature list, the AGPL change record and the compose files. Bot "deploy: pin" merges touch only
 # deploy/docker-compose.image.yml, which is deliberately not listed.
@@ -24,7 +25,7 @@ permissions:
 jobs:
   presence:
     # documenso is a public repo, so GitHub-hosted runners are allowed (the dispatch itself is a few curl calls).
-    uses: doodlemania2/fleet-presence/.github/workflows/presence-dispatch.yml@main
+    uses: doodlemania2/fleet-presence-dispatch/.github/workflows/presence-dispatch.yml@main
     with:
       property: documenso
       targets: '["doodlemania2/tdpdf-site"]'

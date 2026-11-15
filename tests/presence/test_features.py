@@ -1,4 +1,4 @@
-"""Checks presence/features.json against the fleet-presence schema's rules (stdlib only, so CI needs no install)."""
+"""Checks presence/features.json against the rules in fleet-presence-dispatch/schemas/features.schema.json (stdlib only, so CI needs no install)."""
 import glob
 import json
 import os

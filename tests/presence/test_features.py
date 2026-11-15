@@ -41,6 +41,12 @@ class FeaturesFile(unittest.TestCase):
                 self.assertTrue(glob.glob(os.path.join(ROOT, pattern), recursive=True),
                                 f"{f['id']}: source {pattern} matches no file")
 
+    def test_screens_listed(self):
+        with open(os.path.join(ROOT, "presence", "screens.json"), encoding="utf-8") as fh:
+            ids = {s["id"] for s in json.load(fh)["screens"]}
+        for f in self.data["features"]:
+            self.assertTrue(set(f.get("screens", [])) <= ids, f"{f['id']}: screen not in screens.json")
+
     def test_scenarios(self):
         ids = {f["id"] for f in self.data["features"]}
         for s in self.data.get("scenarios", []):

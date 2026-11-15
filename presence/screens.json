@@ -1,0 +1,12 @@
+{
+  "screens": [
+    { "id": "documents", "states": ["empty", "list"] },
+    { "id": "send-upload", "states": ["empty", "uploaded"] },
+    { "id": "send-recipients", "states": ["empty", "filled"] },
+    { "id": "send-fields", "states": ["empty", "placed"] },
+    { "id": "send-review", "states": ["ready"] },
+    { "id": "document-status", "states": ["pending", "completed"] },
+    { "id": "signing", "states": ["open", "filled", "done"] },
+    { "id": "connect", "states": ["allow", "connected"] }
+  ]
+}

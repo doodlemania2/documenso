@@ -89,6 +89,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run the SigNoz rule tests
         run: python3 -m unittest discover -s tests/signoz -v
+      - name: Check the presence feature list
+        run: python3 -m unittest discover -s tests/presence -v
 
   secrets:
     runs-on: ubuntu-latest

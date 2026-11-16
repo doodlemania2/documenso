@@ -1,0 +1,91 @@
+{
+  "property": "documenso",
+  "audiences": [
+    "sender",
+    "signer",
+    "operator"
+  ],
+  "features": [
+    {
+      "id": "send-and-sign",
+      "name": "Send and sign documents",
+      "status": "ready",
+      "summary": "Upload a PDF, place fields, send it to signers by email and get back a sealed, signed copy.",
+      "audiences": [
+        "sender",
+        "signer"
+      ],
+      "headline": true,
+      "screens": [
+        "documents",
+        "send-upload",
+        "send-recipients",
+        "send-fields",
+        "send-review",
+        "document-status",
+        "signing"
+      ],
+      "sources": [
+        "fork/pins.env",
+        "fork/patches/0003-*.patch"
+      ]
+    },
+    {
+      "id": "accurate-signed-pdf",
+      "name": "Signed PDFs that match what you saw",
+      "status": "ready",
+      "summary": "Field values land exactly where the signer placed them, even on pages with offset or rotated boxes.",
+      "audiences": [
+        "sender",
+        "signer"
+      ],
+      "screens": [
+        "signing"
+      ],
+      "sources": [
+        "fork/patches/0002-*.patch"
+      ]
+    },
+    {
+      "id": "tdpdf-connect",
+      "name": "Connect the TDPdf desktop app",
+      "status": "ready",
+      "summary": "Sign in from the browser to link TDPdf to your account, with no token to copy and paste.",
+      "audiences": [
+        "sender"
+      ],
+      "headline": true,
+      "screens": [
+        "connect"
+      ],
+      "sources": [
+        "fork/patches/0004-*.patch",
+        "fork/patches/0005-*.patch"
+      ]
+    },
+    {
+      "id": "key-vault-signing",
+      "name": "Signing keys held in Azure Key Vault",
+      "status": "ready",
+      "summary": "Operators can keep the signing key in Azure Key Vault so it never sits on the server.",
+      "audiences": [
+        "operator"
+      ],
+      "sources": [
+        "fork/patches/0001-*.patch",
+        "deploy/docker-compose.azure-kv.yml"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "send-a-contract",
+      "name": "Send a contract from TDPdf and collect signatures",
+      "features": [
+        "tdpdf-connect",
+        "send-and-sign",
+        "accurate-signed-pdf"
+      ]
+    }
+  ]
+}

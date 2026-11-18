@@ -38,3 +38,8 @@ kubeconfig
 local.settings.json
 __pycache__/
 *.pyc
+
+# Demo stack (demo/up.sh): generated secrets, test certificate and seed output
+demo/.env
+demo/secrets/
+demo/seed-result.json

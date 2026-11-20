@@ -4,7 +4,8 @@
 #   build   fork/build.sh on doodlemanage, pushes to the registry, reads the digest
 #   bump    opens a PR that pins the digest in deploy/docker-compose.image.yml, runs the five
 #           required checks on it, merges it, and starts the deploy (ubuntu-latest)
-#   deploy  deploy/doodlessd/deploy.sh on the doodlessd runner: dump, pull by digest, up -d,
+#   deploy  deploy/doodlessd/deploy.sh on the edge primary, reached through /etc/edge-deploy/edge-ssh
+#           from an edge-deploy-documenso-deploy runner: dump, pull by digest, up -d,
 #           health check, roll back on failure
 #
 # Two kinds of push to main start a run:
@@ -17,7 +18,8 @@
 # approval (action_required), so the bump job approves it; that is what makes the checks count.
 #
 # Needs: secrets EDGE_REGISTRY_USERNAME, EDGE_REGISTRY_PASSWORD, NTFY_URL; variable BUILD_RUNNER; the runner
-# doodlessd-documenso-deploy (deploy/doodlessd/docker-compose.runner.yml); and the repo setting
+# edge-deploy-documenso-deploy (registered by K3s on doodlemanage and doodlessd2; it holds the edge
+# key, so this job runs only on push to main or by hand, never on a pull request); and the repo setting
 # "Allow GitHub Actions to create and approve pull requests".
 name: deploy
 
@@ -201,30 +203,35 @@ jobs:
   deploy:
     needs: plan
     if: needs.plan.outputs.deploy == 'true'
-    runs-on: doodlessd-documenso-deploy
+    runs-on: edge-deploy-documenso-deploy
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+      # The runner has no Docker socket and no stack folder. /etc/edge-deploy/edge-ssh reaches the
+      # edge primary and accepts three verbs: sync, login and run (see TDP-561).
+      - name: Stage the files
+        run: |
+          mkdir -p stage/incoming
+          cp deploy/docker-compose.yml deploy/docker-compose.azure-kv.yml deploy/docker-compose.image.yml stage/incoming/
+          cp deploy/doodlessd/deploy.sh stage/deploy.sh
+          tar -C stage -c . | /etc/edge-deploy/edge-ssh sync documenso-stack
       - name: Log in to the registry
         env:
           REGISTRY_USERNAME: ${{ secrets.EDGE_REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.EDGE_REGISTRY_PASSWORD }}
-        run: printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+        run: printf '%s' "$REGISTRY_PASSWORD" | /etc/edge-deploy/edge-ssh login "$REGISTRY" "$REGISTRY_USERNAME"
       - name: Deploy
-        run: deploy/doodlessd/deploy.sh "$GITHUB_WORKSPACE/deploy"
+        run: /etc/edge-deploy/edge-ssh run documenso-stack deploy.sh incoming
       - name: Post a success notice to ntfy
         env:
           NTFY_URL: ${{ secrets.NTFY_URL }}
         run: |
-          image="$(cat /home/derek/documenso-stack/.deployed-image 2>/dev/null || echo unknown)"
+          image="$(sed -nE 's/^[[:space:]]*image:[[:space:]]*([^[:space:]#]+).*/\1/p' deploy/docker-compose.image.yml | head -n1)"
           curl -fsS -m 20 -X POST \
             -H "Title: documenso deployed" -H "Priority: default" -H "Tags: white_check_mark" \
             -d "deployed ${image##*/}" "$NTFY_URL" >/dev/null 2>&1 || true
-      - name: Log out of the registry
-        if: always()
-        run: docker logout "$REGISTRY" || true
 
   notify-failure:
     needs: [plan, build, bump, deploy]

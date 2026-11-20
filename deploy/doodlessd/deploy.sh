@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Rolls the documenso app container to the image in deploy/docker-compose.image.yml.
-# Run by .github/workflows/deploy.yml on the doodlessd runner:
+# Run by .github/workflows/deploy.yml on the edge primary through `edge-ssh run documenso-stack deploy.sh incoming`.
+# The job first syncs the checked-in compose files to $STACK_DIR/incoming and this script to $STACK_DIR.
 #
-#   deploy.sh <dir with the checked-in compose files>      e.g. "$GITHUB_WORKSPACE/deploy"
+#   deploy.sh <dir with the new compose files>      relative to the stack folder, e.g. incoming
 #
 # What it does, in order. Any failure after step 5 rolls back to the previous files and image.
 #   1. Read the new image reference. Refuse a downgrade (version in the tag, compared with sort -V).

@@ -47,8 +47,9 @@ deploys itself. [`deploy.yml`](.github/workflows/deploy.yml) does four things:
 1. **Build** the image on doodlemanage and push it to the internal registry.
 2. **Pin** it by digest. A bot PR rewrites `deploy/docker-compose.image.yml`, the five checks run on
    it, and it merges itself.
-3. **Deploy** on doodlessd with [`deploy/doodlessd/deploy.sh`](deploy/doodlessd/deploy.sh). The runner
-   on doodlessd makes only outbound connections.
+3. **Deploy** on the edge primary with [`deploy/doodlessd/deploy.sh`](deploy/doodlessd/deploy.sh). A runner
+   on doodlemanage or doodlessd2 (label `edge-deploy-documenso-deploy`) syncs the files and runs the script
+   through `/etc/edge-deploy/edge-ssh`; no runner lives on doodlessd.
 4. **Roll back** if the app is not healthy in time. Before the switch, the script dumps the database
    to `predeploy/` in the stack directory. It refuses to deploy an older version than the one running.
 

@@ -28,7 +28,9 @@ Repo specifics:
   no force push, no deletion. Admin enforcement is OFF so Derek can merge in an emergency.
 - `deploy.yml` builds, pins and deploys on a merge to main that changes `fork/pins.env`,
   `fork/build.sh`, `fork/patches/` or `deploy/docker-compose*.yml`. Build runs on doodlemanage, deploy
-  on the doodlessd runner (label `doodlessd-documenso-deploy`, compose file in `deploy/doodlessd/`).
+  on a runner labelled `edge-deploy-documenso-deploy` (doodlemanage or doodlessd2). It reaches the edge primary
+  only through `/etc/edge-deploy/edge-ssh` (`sync`, `login`, `run`); that key is root on the edge, so the job
+  must never run on a pull request. The script is `deploy/doodlessd/deploy.sh`.
   `deploy/docker-compose.image.yml` is written by the workflow (a bot PR); never edit it by hand.
   `deploy.sh` refuses a downgrade, dumps the database first, and rolls back on a failed health check.
   Needs secrets `EDGE_REGISTRY_USERNAME`, `EDGE_REGISTRY_PASSWORD`, `NTFY_URL`.

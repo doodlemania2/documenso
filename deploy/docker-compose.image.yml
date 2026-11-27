@@ -4,5 +4,5 @@
 # image of docker-compose.azure-kv.yml, so the overlay stays untouched.
 services:
   documenso:
-    image: doodlemanage.tail890bc.ts.net:5000/documenso:v2.22.0-tdp.1@sha256:87a6c38f54141eeeee0807e624db7fad29cffe962d93a1f895df2361927b23a8
+    image: doodlemanage.tail890bc.ts.net:5000/documenso:v2.22.0-tdp.2@sha256:54e7e4d10dbe585f5d257f4ad20c6eb211f41e70076b1a78ea37fa282ed3a3f4
     pull_policy: missing

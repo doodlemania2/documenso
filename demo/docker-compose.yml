@@ -1,0 +1,59 @@
+# A throwaway Documenso for screenshots: invented people, local mail, nothing real.
+# Run demo/up.sh. It writes demo/.env (ignored by git), makes a test certificate, and starts this stack
+# on 127.0.0.1 only. Never point it at production data, and never reuse its secrets anywhere.
+name: documenso-demo
+
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:?run demo/up.sh}
+      POSTGRES_DB: demo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  mail:
+    image: axllent/mailpit:v1.21
+    command: ["--smtp-auth-accept-any", "--smtp-auth-allow-insecure"]
+    ports:
+      - "127.0.0.1:${DEMO_MAIL_PORT:-8125}:8025"
+
+  documenso:
+    image: ${DEMO_IMAGE:?run demo/up.sh}
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DEMO_APP_PORT:-3190}:3000"
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      NEXT_PUBLIC_WEBAPP_URL: http://127.0.0.1:${DEMO_APP_PORT:-3190}
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://127.0.0.1:3000
+      NEXT_PRIVATE_DATABASE_URL: postgresql://demo:${DEMO_DB_PASSWORD}@database:5432/demo
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: postgresql://demo:${DEMO_DB_PASSWORD}@database:5432/demo
+      NEXTAUTH_SECRET: ${DEMO_SECRET_1}
+      NEXT_PRIVATE_ENCRYPTION_KEY: ${DEMO_SECRET_2}
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: ${DEMO_SECRET_3}
+      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
+      NEXT_PRIVATE_SMTP_HOST: mail
+      NEXT_PRIVATE_SMTP_PORT: "1025"
+      NEXT_PRIVATE_SMTP_USERNAME: demo
+      NEXT_PRIVATE_SMTP_PASSWORD: demo
+      NEXT_PRIVATE_SMTP_SECURE: "false"
+      NEXT_PRIVATE_SMTP_FROM_NAME: Harbor Light Studio
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: noreply@example.org
+      NEXT_PRIVATE_SIGNING_TRANSPORT: local
+      # The certificate travels as an environment value, not a bind mount, so it works on any Docker setup
+      # (a VM that does not share this folder would otherwise mount an empty directory).
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS: ${DEMO_CERT_B64}
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: ${DEMO_CERT_PASSPHRASE}
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: database
+      NEXT_PUBLIC_DISABLE_SIGNUP: "false"
+      DOCUMENSO_DISABLE_TELEMETRY: "true"

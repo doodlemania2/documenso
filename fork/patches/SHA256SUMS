@@ -1,6 +1,6 @@
 75de7977c26acc2d863a69778d55c076b8128584e0324fde297498220c3bdc60  0001-signing-azure-key-vault-transport.patch
 647dbc039c516f8cd5905966905409adab953980aa1ff265504a97a8452c1d43  0002-seal-respect-visible-box-origin.patch
 08c0bb7e5bdf7affab3bc4d75a6f47edd49ba6122f9d5aa53d6137d90f0a51dd  0003-rebrand-tdpdf-signing.patch
-46513c25ffd6d871d61abc6187b70aed5c1c5cf13437fbfe1d5a50bdad997d42  0004-tdpdf-browser-sign-in.patch
+e52e898e88a87bb3875024df48f40f936c137b989204dd8f63299d6e1cca8824  0004-tdpdf-browser-sign-in.patch
 9f8bf2c6395287e9b000f81e06918dc1c693faf479d4c0f99302a1465e65b6a1  0005-tdpdf-connect-personal-team.patch
 bb9a4c4c7ad6a0bb977b01b884fea173a78699bf792cb7119e75a42d8ca098f0  0006-tdpdf-zoho-salesiq-widget.patch

@@ -1,0 +1,172 @@
+diff --git a/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
+index 3b7ca5ab..7e2ebec4 100644
+--- a/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
++++ b/apps/remix/app/routes/_unauthenticated+/connect.tdpdf.tsx
+@@ -2,6 +2,7 @@ import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session
+ import { BRAND_NAME } from '@documenso/lib/constants/brand';
+ import {
+   createConnectCode,
++  getConnectClient,
+   isAllowedRedirectUri,
+   isValidCodeChallenge,
+ } from '@documenso/lib/server-only/connect/tdpdf-connect';
+@@ -62,6 +63,7 @@ export async function loader({ request }: Route.LoaderArgs) {
+   return {
+     valid: true as const,
+     params,
++    client: getConnectClient(params.redirectUri),
+     email: session.user.email,
+     teams: teams.map((team) => ({ id: team.id, name: team.name })),
+   };
+@@ -138,19 +140,19 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+           <Trans>This link is not valid</Trans>
+         </h1>
+         <p className="mt-3 text-muted-foreground text-sm">
+-          <Trans>Go back to TDPdf and choose Connect again.</Trans>
++          <Trans>Go back to the app and choose Connect again.</Trans>
+         </p>
+       </div>
+     );
+   }
+ 
+-  const { params, teams, email } = loaderData;
++  const { params, teams, email, client } = loaderData;
+ 
+   if (redirectTo) {
+     return (
+       <div className="mx-auto w-full max-w-md text-center">
+         <h1 className="font-semibold text-2xl">
+-          <Trans>You can return to TDPdf</Trans>
++          <Trans>You can return to {client.name}</Trans>
+         </h1>
+         <p className="mt-3 text-muted-foreground text-sm">
+           <Trans>This window can be closed.</Trans>
+@@ -161,16 +163,18 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+ 
+   const isBusy = fetcher.state !== 'idle';
+ 
++  // A web app is named with its host; the desktop app has no host to show.
++  const clientLabel = client.host ? `${client.name} (${client.host})` : `${client.name} on your computer`;
++
+   return (
+     <fetcher.Form method="post" className="mx-auto w-full max-w-md rounded-lg border bg-background p-6 shadow-sm">
+       <h1 className="font-semibold text-2xl">
+-        <Trans>Connect TDPdf</Trans>
++        <Trans>Connect {client.name}</Trans>
+       </h1>
+ 
+       <p className="mt-3 text-muted-foreground text-sm">
+         <Trans>
+-          TDPdf on your computer is asking to send documents for signature and read their status as {email} in{' '}
+-          {BRAND_NAME}.
++          {clientLabel} is asking to send documents for signature and read their status as {email} in {BRAND_NAME}.
+         </Trans>
+       </p>
+ 
+@@ -204,7 +208,7 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+ 
+       <p className="mt-3 text-muted-foreground text-xs">
+         <Trans>
+-          This creates an API token named "TDPdf" that lasts one year. You can revoke it at any time under the team's
++          This creates an API token named "{client.name}" that lasts one year. You can revoke it at any time under the team's
+           API tokens.
+         </Trans>
+       </p>
+@@ -216,7 +220,7 @@ export default function ConnectTdpdfPage({ loaderData }: Route.ComponentProps) {
+               Your account cannot have a personal team here. Ask your organisation's administrator for a team.
+             </Trans>
+           ) : (
+-            <Trans>Something went wrong. Go back to TDPdf and try again.</Trans>
++            <Trans>Something went wrong. Go back to {client.name} and try again.</Trans>
+           )}
+         </p>
+       )}
+diff --git a/packages/lib/server-only/connect/tdpdf-connect.test.ts b/packages/lib/server-only/connect/tdpdf-connect.test.ts
+index 9bd4cb9c..feb387a8 100644
+--- a/packages/lib/server-only/connect/tdpdf-connect.test.ts
++++ b/packages/lib/server-only/connect/tdpdf-connect.test.ts
+@@ -8,6 +8,7 @@ vi.mock('../public-api/create-api-token', () => ({
+ import { createApiToken } from '../public-api/create-api-token';
+ import {
+   createConnectCode,
++  getConnectClient,
+   isAllowedRedirectUri,
+   isValidCodeChallenge,
+   redeemConnectCode,
+@@ -64,6 +65,28 @@ describe('tdpdf connect', () => {
+     expect(createApiToken).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, teamId: 9 }));
+   });
+ 
++  it('names the API token after the app that asked', async () => {
++    const web = 'https://app.foliolum.app/sign/callback';
++    const webCode = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri: web });
++
++    await redeemConnectCode({ code: webCode, codeVerifier: verifier });
++    expect(createApiToken).toHaveBeenLastCalledWith(expect.objectContaining({ tokenName: expect.stringMatching(/^Foliolum \(/) }));
++
++    const desktopCode = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
++
++    await redeemConnectCode({ code: desktopCode, codeVerifier: verifier });
++    expect(createApiToken).toHaveBeenLastCalledWith(expect.objectContaining({ tokenName: expect.stringMatching(/^TDPdf \(/) }));
++  });
++
++  it('tells the consent page who is asking', () => {
++    expect(getConnectClient('https://app.foliolum.app/sign/callback')).toEqual({
++      name: 'Foliolum',
++      host: 'app.foliolum.app',
++      isWeb: true,
++    });
++    expect(getConnectClient(redirectUri)).toEqual({ name: 'TDPdf', host: null, isWeb: false });
++  });
++
+   it('rejects a wrong verifier, and burns the code so it cannot be retried', async () => {
+     const code = await createConnectCode({ userId: 7, teamId: 9, codeChallenge: challenge, redirectUri });
+ 
+diff --git a/packages/lib/server-only/connect/tdpdf-connect.ts b/packages/lib/server-only/connect/tdpdf-connect.ts
+index b102914a..239c208e 100644
+--- a/packages/lib/server-only/connect/tdpdf-connect.ts
++++ b/packages/lib/server-only/connect/tdpdf-connect.ts
+@@ -61,6 +61,25 @@ export const isValidCodeVerifier = (value: string) => /^[A-Za-z0-9._~-]{43,128}$
+  */
+ export const ALLOWED_WEB_REDIRECT_URIS = ['https://app.foliolum.app/sign/callback'];
+ 
++/** What each web callback is called on the consent page and on the API token it creates. */
++const WEB_CLIENT_NAMES: Record<string, string> = {
++  'https://app.foliolum.app/sign/callback': 'Foliolum',
++};
++
++/**
++ * Who is asking, for the consent page and the token name: a web app by name and
++ * host, anything else (the loopback redirect) is the TDPdf desktop app.
++ */
++export const getConnectClient = (redirectUri: string) => {
++  const webName = WEB_CLIENT_NAMES[redirectUri];
++
++  if (webName) {
++    return { name: webName, host: new URL(redirectUri).host, isWeb: true as const };
++  }
++
++  return { name: 'TDPdf', host: null, isWeb: false as const };
++};
++
+ /** Origins that may call the token endpoint from a browser. */
+ export const ALLOWED_WEB_ORIGINS = ALLOWED_WEB_REDIRECT_URIS.map((uri) => new URL(uri).origin);
+ 
+@@ -129,7 +148,7 @@ export const redeemConnectCode = async ({ code, codeVerifier }: RedeemConnectCod
+       throw invalidGrant();
+     });
+ 
+-  const { typ, tid, cc, jti, sub, exp } = payload;
++  const { typ, tid, cc, jti, sub, exp, ru } = payload;
+ 
+   if (typ !== CODE_TYPE || typeof tid !== 'number' || typeof cc !== 'string' || !jti || !sub || !exp) {
+     throw invalidGrant();
+@@ -156,7 +175,7 @@ export const redeemConnectCode = async ({ code, codeVerifier }: RedeemConnectCod
+   const { token } = await createApiToken({
+     userId: Number(sub),
+     teamId: tid,
+-    tokenName: `TDPdf (${new Date(now).toISOString().slice(0, 10)})`,
++    tokenName: `${getConnectClient(typeof ru === 'string' ? ru : '').name} (${new Date(now).toISOString().slice(0, 10)})`,
+     expiresIn: TOKEN_EXPIRES_IN,
+   });
+ 

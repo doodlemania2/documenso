@@ -73,3 +73,10 @@ source is upstream at the commit in `fork/pins.env` with the patches in `fork/pa
 - Upstream adds three migrations, run at boot: `add_envelope_contents`, and two that lowercase
   existing user and recipient emails (`lowercase_user_emails`, `lowercase_recipient_emails`).
   Check for case-duplicate emails before deploying.
+
+## 2026-11-27 — against v2.22.0
+
+- **The connect page names the app that asks** (`fork/patches/0007-tdpdf-connect-names-the-app.patch`).
+  For the Foliolum web callback, `/connect/tdpdf` says "Foliolum (app.foliolum.app) is asking…" and the API token it
+  creates is named "Foliolum (date)"; the loopback desktop flow is unchanged ("TDPdf on your computer", "TDPdf (date)").
+  Keyed on the exact redirect URI, from the signed code on redemption.

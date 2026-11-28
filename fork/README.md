@@ -184,6 +184,13 @@ per-request CSP nonce; `script-src` is `'nonce-…' 'strict-dynamic'`, so a bare
 The widget's own scripts are then trusted via `strict-dynamic`. Third-party styles are not: see
 `style-src-elem` in `apps/remix/server/security-headers.ts` if the widget renders unstyled.
 
+### 0007 — the connect page names the app that asks
+
+`getConnectClient(redirectUri)` in `tdpdf-connect.ts` maps an allowed web callback to its app name
+(Foliolum, `app.foliolum.app`); any loopback redirect is TDPdf. The consent page shows it, and
+`redeemConnectCode` names the API token `<App> (YYYY-MM-DD)` from the redirect URI held in the signed code.
+Add a web app to both `ALLOWED_WEB_REDIRECT_URIS` and `WEB_CLIENT_NAMES`.
+
 ## Working on the patches
 
 ```bash
